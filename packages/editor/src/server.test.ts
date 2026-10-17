@@ -48,12 +48,14 @@ test("pushes external file changes over SSE, but not its own writes", async () =
   await fetch(url("/api/text"), { method: "PUT", body: `use base/architecture\nservice own "Own"\n` });
   appendFileSync(file, "# external\n");
   let got = "";
-  const deadline = Date.now() + 3000;
-  while (!got.includes("# external") && Date.now() < deadline) {
-    const chunk = await Promise.race([reader.read(), Bun.sleep(3000).then(() => ({ value: "" }))]);
-    got += chunk.value ?? "";
-  }
+  const pump = (async () => {
+    for (let r = await reader.read(); !r.done; r = await reader.read()) got += r.value;
+  })().catch(() => {});
+  const deadline = Date.now() + 5000;
+  while (!got.includes("# external") && Date.now() < deadline) await Bun.sleep(50);
+  await Bun.sleep(200); // allow a (wrong) echo of our own write to show up
   await reader.cancel();
+  await pump;
   expect(got).toContain("event: text");
   expect(got).toContain("# external");
   expect(got.split("event: text").length - 1).toBe(1);

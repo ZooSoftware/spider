@@ -36,16 +36,31 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
     for (const push of clients) push(event, data);
   };
 
-  const watcher = watch(dir, async (_ev, name) => {
-    if (name !== basename(file) && name !== basename(layoutPath)) return;
-    const isText = name === basename(file);
-    const path = isText ? file : layoutPath;
+  // Watch events can arrive mid-write, merged, or not at all, so they only schedule a settled
+  // re-read; a slow poll is the safety net.
+  const writing = { text: 0, layout: 0 };
+  const check = async (kind: "text" | "layout"): Promise<void> => {
+    // Never read our own half-written file and echo it back to the browser.
+    if (writing[kind] > 0) return;
+    const path = kind === "text" ? file : layoutPath;
     const content = existsSync(path) ? await readFile(path, "utf8") : "";
-    if (isText ? content === known.text : content === known.layout) return;
-    if (isText) known.text = content;
-    else known.layout = content;
-    broadcast(isText ? "text" : "layout", isText ? { text: content } : { layout: content });
+    if (writing[kind] > 0 || content === known[kind]) return;
+    known[kind] = content;
+    broadcast(kind, kind === "text" ? { text: content } : { layout: content });
+  };
+  const timers: Partial<Record<"text" | "layout", ReturnType<typeof setTimeout>>> = {};
+  const checkSoon = (kind: "text" | "layout"): void => {
+    clearTimeout(timers[kind]);
+    timers[kind] = setTimeout(() => void check(kind), 40);
+  };
+  const watcher = watch(dir, (_ev, name) => {
+    if (name === basename(file)) checkSoon("text");
+    else if (name === basename(layoutPath)) checkSoon("layout");
   });
+  const poll = setInterval(() => {
+    void check("text");
+    void check("layout");
+  }, 1000);
 
   const server = Bun.serve({
     port: opts.port ?? 4321,
@@ -61,7 +76,8 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
           const text = await req.text();
           if (text !== known.text) {
             known.text = text;
-            await writeFile(file, text);
+            writing.text++;
+            await writeFile(file, text).finally(() => writing.text--);
           }
           return new Response(null, { status: 204 });
         },
@@ -71,7 +87,8 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
           const layout = await req.text();
           if (layout !== known.layout) {
             known.layout = layout;
-            await writeFile(layoutPath, layout);
+            writing.layout++;
+            await writeFile(layoutPath, layout).finally(() => writing.layout--);
           }
           return new Response(null, { status: 204 });
         },
@@ -112,6 +129,9 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
     url: server.url.href,
     stop() {
       watcher.close();
+      clearInterval(poll);
+      clearTimeout(timers.text);
+      clearTimeout(timers.layout);
       server.stop(true);
     },
   };
