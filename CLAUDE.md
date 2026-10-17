@@ -6,6 +6,7 @@ Full design and open questions: `DESIGN.md`. Read it before any architectural ch
 ## Status
 
 Building the prototype. Phases and checklists: `PLAN.md` (tick tasks as they land).
+Review findings to fix later: `BACKLOG.md`.
 Prototype defaults for open design questions are listed at the top of `PLAN.md`.
 
 ## Core invariants (do not break)
