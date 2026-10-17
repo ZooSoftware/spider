@@ -1,0 +1,63 @@
+# Example custom profile: ACME's Kubernetes building blocks, with its own icons and rules.
+# Use it next to a built-in profile with an alias:  use acme/k8s@1 as k8s
+name: acme/k8s
+version: 1.0.0
+description: Kubernetes building blocks used at ACME (example of a user-defined profile).
+
+nodes:
+  cluster:
+    description: A Kubernetes cluster.
+    icon: icons/cluster.svg
+    shape: rounded
+    container: true
+    allows: [namespace]
+    style: { stroke: "#326ce5" }
+  namespace:
+    description: A namespace inside a cluster.
+    icon: icons/namespace.svg
+    shape: rect
+    container: true
+    style: { stroke: "#326ce5", dashed: true }
+  ingress:
+    description: HTTP entry point into the cluster.
+    icon: icons/ingress.svg
+    shape: rounded
+    layout: { layer: first }
+    style: { stroke: "#326ce5" }
+  service:
+    description: Stable network name in front of pods.
+    icon: icons/service.svg
+    shape: hexagon
+    size: [130, 54]
+  deployment:
+    description: Runs and scales a set of identical pods.
+    icon: icons/deployment.svg
+    shape: rounded
+    props: { image: string, replicas: number }
+    style: { stroke: "#326ce5", strokeWidth: 2 }
+  configmap:
+    description: Configuration mounted into pods.
+    icon: icons/configmap.svg
+    shape: rect
+    size: [120, 48]
+    style: { dashed: true }
+
+edges:
+  routes:
+    description: Network traffic.
+    style: solid
+    arrow: end
+    color: "#326ce5"
+  mounts:
+    description: A config or volume mounted into a workload.
+    style: dotted
+    arrow: end
+defaultEdge: routes
+
+rules:
+  - forbid: ingress -> deployment
+    message: Ingress should route to a Service, not directly to a Deployment
+    severity: warning
+
+theme:
+  containerFill: "#f5f8ff"

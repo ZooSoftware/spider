@@ -191,7 +191,7 @@ stmt    := use | edge | node                 # inside blocks: also prop
 use     := 'use' profile ('@' version)? ('as' IDENT)?
 profile := IDENT ('/' IDENT)*
 version := [0-9A-Za-z.-]+                    # no spaces, e.g. 1.2.0-beta.1
-edge    := IDENT '->' IDENT (':' IDENT?)? STRING?     # IDENT followed by '->'
+edge    := IDENT '->' IDENT (':' kind?)? STRING?      # IDENT followed by '->'; kind may be namespaced
 node    := kind IDENT STRING? block?
 kind    := IDENT ('.' IDENT)?                # namespaced: k8s.pod
 block   := '{' (prop | stmt)* '}'
@@ -296,3 +296,24 @@ packages/
 - **Building blocks:** ELK.js, libavoid (Adaptagrams), xyflow, tldraw, Lezer, CodeMirror.
 
 **Our difference:** a small AI-first grammar, incremental layout with pinning, real two-way editing that preserves formatting, and user-defined profiles.
+
+---
+
+## 11. Decisions made during the prototype
+
+- **Layout sidecar** (`<file>.spd.layout.json`), explicit node ids, edge ids `a->b`, `a->b#2`.
+- **Placement vs. routing:** ELK only places nodes; our own synchronous orthogonal router draws
+  every line (needed for live re-routing while dragging and for pinned/moved nodes).
+- **A user edit never moves other nodes.** Overlaps are shown (warning outline +
+  `layout/overlaps-container`), not auto-resolved, to avoid cascades.
+- **Containers** always fit their real children; a resize handle only sets a minimum size.
+- **Lines:** every arrow end keeps a straight run of arrowhead + 12px; lines never run along
+  container borders. Hand-routed lines are stored as `manual` points; dragging a line end to
+  another side stores `sourcePort`/`targetPort` and routes automatically.
+- **Write-back** edits go through the code editor as normal transactions, so they are visible,
+  saved and undoable. **One history** of `{ text, layout }` snapshots covers code and canvas.
+- **Membership is code:** dropping a node onto a container moves its statement into that block.
+- **Editor runs the pipeline in the browser**; the server (127.0.0.1 only) does file IO,
+  profile loading and pushes external edits. Reads that overlap a save are discarded.
+- **Namespaced kinds** for nodes and edges (`k8s.pod`, `: k8s.mounts`) come from `use … as k8s`.
+

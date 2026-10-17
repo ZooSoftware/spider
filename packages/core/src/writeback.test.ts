@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { applyTextEdits } from "./edits.ts";
 import { parseModel } from "./build.ts";
-import { addEdge, addNode, deleteElements, moveNode, quote, setLabel } from "./writeback.ts";
+import { addEdge, addNode, deleteElements, moveNode, quote, renameEdgeId, renameId, setLabel } from "./writeback.ts";
 import type { TextEdit } from "./edits.ts";
 
 const SRC = `use base/architecture
@@ -234,5 +234,29 @@ describe("blank lines", () => {
   test("a statement directly followed by another keeps the layout", () => {
     const src = `service a\n\nservice b\nservice c\n`;
     expect(apply(src, deleteElements(src, { nodes: ["b"] }))).toBe(`service a\n\nservice c\n`);
+  });
+});
+
+describe("renameId", () => {
+  test("renames the declaration and every edge end, keeps everything else", () => {
+    const out = apply(SRC, renameId(SRC, "api", "gateway"));
+    expect(out).toContain(`  service gateway "API"   # entry point`);
+    expect(out).toContain("gateway -> store : data\n");
+    expect(out).toContain(`gateway -> stripe : "charge"\n`);
+    expect(out).not.toMatch(/\bapi\b/);
+    clean(out);
+  });
+
+  test("rejects invalid or taken ids", () => {
+    expect(() => renameId(SRC, "api", "store")).toThrow();
+    expect(() => renameId(SRC, "api", "9x")).toThrow();
+    expect(() => renameId(SRC, "api", "use")).toThrow();
+    expect(renameId(SRC, "api", "api")).toEqual([]);
+  });
+
+  test("edge ids follow the rename", () => {
+    expect(renameEdgeId("a->b", "a", "x")).toBe("x->b");
+    expect(renameEdgeId("a->a#2", "a", "x")).toBe("x->x#2");
+    expect(renameEdgeId("b->c", "a", "x")).toBe("b->c");
   });
 });

@@ -29,7 +29,7 @@ export interface EdgeStmt {
   arrow: Token;
   target?: Token;
   colon?: Token;
-  edgeKind?: Token;
+  edgeKind?: NameNode;
   label?: Token;
   span: Span;
 }

@@ -136,18 +136,19 @@ comments and formatting should be intact.
 
 ## Phase 7 — Polish (after review)
 
-- [ ] PNG export
-- [ ] AI cheat sheet generator: `spider profile-doc base/architecture`
-- [ ] Custom profile example in `examples/profiles/` (your own icons and rules)
-- [ ] Rename ID from the canvas (rekey layout)
-- [ ] Notes from review sessions
+- [x] PNG export: `spider build --png` and SVG/PNG buttons in the editor
+- [x] AI cheat sheet generator: `spider profile-doc base/architecture` (or `<file.spd>`)
+- [x] Custom profile example: `examples/profiles/acme/k8s` + `examples/kubernetes.spd`
+      (found and fixed: namespaced edge kinds `: k8s.mounts` weren't parseable)
+- [x] Rename ID from the canvas (`I` on a node): code + layout re-keyed
+- [x] Notes from review sessions: design rules in BACKLOG.md / CLAUDE.md, DESIGN.md §11
 
 ---
 
 ## Backlog phases (easy → hard)
 
 Fixes from review, ordered by difficulty. Details and "done when" criteria live in
-`BACKLOG.md` (B1–B8). Phase 7 (polish) is deferred until after these.
+`BACKLOG.md` (B1–B8). Phase 7 (polish) was done after these.
 
 ### Phase 8 — Editor quick wins: B5 + B7  (easy)
 Pure editor UI, no changes to core/layout/render.

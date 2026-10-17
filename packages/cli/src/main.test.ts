@@ -48,3 +48,14 @@ test("usage and bad arguments", () => {
   expect(run("frobnicate").code).toBe(2);
   expect(run("build").code).toBe(2);
 });
+
+test("profile-doc prints a cheat sheet for a profile name or a diagram", () => {
+  const byName = run("profile-doc", "base/architecture");
+  expect(byName.code).toBe(0);
+  expect(byName.out).toContain("service");
+  writeFileSync(join(dir, "d.spd"), `use base/flowchart\nstart s "Start"\n`);
+  const byFile = run("profile-doc", "d.spd");
+  expect(byFile.code).toBe(0);
+  expect(byFile.out).toContain("decision");
+  expect(run("profile-doc", "no/such-profile").code).toBe(1);
+});

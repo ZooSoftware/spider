@@ -66,14 +66,14 @@ button:disabled { opacity: 0.45; cursor: default; }
 .canvas .spd-preview { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; pointer-events: none; }
 .canvas .spd-edge { cursor: pointer; }
 .palette {
-  position: absolute; top: 10px; left: 10px; z-index: 2; width: 132px;
-  max-height: calc(100% - 50px); overflow: auto;
+  position: absolute; top: 10px; left: 10px; z-index: 2; min-width: 132px; max-width: 220px;
+  max-height: calc(100% - 50px); overflow-y: auto; overflow-x: hidden;
   background: rgba(255, 255, 255, 0.95); border: 1px solid var(--border); border-radius: 8px;
   padding: 6px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 .pal-title { color: var(--muted); font-size: 11px; padding: 2px 4px 6px; }
 .pal-item {
-  display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px;
+  display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px; white-space: nowrap;
   cursor: grab; user-select: none; color: var(--text);
 }
 .pal-item:hover { background: #eff6ff; color: var(--accent); }
@@ -98,3 +98,5 @@ button:disabled { opacity: 0.45; cursor: default; }
 .canvas .spd-seg.v { cursor: ew-resize; }
 .canvas .spd-end { fill: var(--accent); stroke: #fff; stroke-width: 1.5; cursor: move; }
 .canvas .spd-manual { fill: var(--accent); pointer-events: auto; }
+.rename.mono { font-family: ui-monospace, monospace; }
+.rename.invalid { border-color: var(--error); color: var(--error); }

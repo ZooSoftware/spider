@@ -110,11 +110,13 @@ export function parse(source: string): ParseResult {
     const stmt: EdgeStmt = { type: "Edge", source, arrow, span: source.span };
     if (!(stmt.target = eatHere("ident"))) expected("target node id", "parse/expected-target");
     if (stmt.target && (stmt.colon = eat("colon"))) {
-      stmt.edgeKind = eatHere("ident");
+      const first = eatHere("ident");
+      // Namespaced edge kinds, like node kinds: `a -> b : k8s.mounts`.
+      if (first) stmt.edgeKind = name(first, "dot", "parse/expected-edge-kind", "edge kind");
       if (!stmt.edgeKind && !(sameLine() && at("string"))) expected("edge kind or label", "parse/expected-edge-kind");
     }
     if (stmt.target) stmt.label = eat("string");
-    stmt.span = span(source, last(stmt.arrow, stmt.target, stmt.colon, stmt.edgeKind, stmt.label));
+    stmt.span = span(source, last<{ span: Span }>(stmt.arrow, stmt.target, stmt.colon, stmt.edgeKind, stmt.label));
     return stmt;
   }
 

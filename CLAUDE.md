@@ -5,7 +5,8 @@ Full design and open questions: `DESIGN.md`. Read it before any architectural ch
 
 ## Status
 
-Building the prototype. Phases and checklists: `PLAN.md` (tick tasks as they land).
+Prototype complete (phases 0–13). Phases and checklists: `PLAN.md` (tick tasks as they land).
+User guide: `README.md`.
 Review findings to fix later: `BACKLOG.md`.
 Prototype defaults for open design questions are listed at the top of `PLAN.md`.
 
@@ -65,7 +66,8 @@ bun test                    # all tests; `bun test packages/core` for one packag
 bun run typecheck           # tsc --noEmit over packages/*/src
 bun run spider build examples/checkout.spd --png   # → .svg/.png + .layout.json
 bun run spider check <file.spd>                    # diagnostics only, exit 1 on errors
-bun run spider dev examples/checkout.spd           # two-way editor on http://127.0.0.1:4321
+bun run spider dev examples/checkout.spd           # two-way editor on http://127.0.0.1:4321 (?debug)
+bun run spider profile-doc base/architecture       # AI cheat sheet for a profile or a .spd
 ```
 
 Packages are consumed as TypeScript source (`exports: ./src/index.ts`); no build step.

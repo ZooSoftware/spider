@@ -9,7 +9,10 @@ import {
   addNode,
   deleteElements,
   edgeId,
+  isValidId,
   moveNode,
+  renameEdgeId,
+  renameId,
   parseModel,
   setLabel,
   type Diagnostic,
@@ -40,6 +43,7 @@ import {
 import { renderSvg } from "@spider/render/render";
 import { Canvas, PALETTE_MIME, type Point, type Target } from "./canvas.ts";
 import { createCodeEditor } from "./code.ts";
+import { exportPng, exportSvg } from "./export.ts";
 import { History } from "./history.ts";
 import { setupSplit } from "./panels.ts";
 import { setupZoom, zoomKey } from "./zoom.ts";
@@ -680,6 +684,50 @@ function openRename(target: Target): void {
   input.addEventListener("pointerdown", (e) => e.stopPropagation());
 }
 
+/** Inline editor for a node's id: renames it in the code and re-keys its layout entries. */
+function openRenameId(id: string): void {
+  const n = state.layout.nodes[id];
+  if (!n || !state.model?.nodes.has(id)) return;
+  const rect = canvas.toScreenRect(isContainer(id) ? { x: n.x, y: n.y, w: n.w, h: 36 } : n);
+  document.querySelector(".rename")?.remove();
+  const input = document.createElement("input");
+  input.className = "rename mono";
+  input.value = id;
+  input.title = "Node id (letters, digits, _)";
+  const w = Math.max(rect.w, 140);
+  Object.assign(input.style, { left: `${rect.x + rect.w / 2 - w / 2}px`, top: `${rect.y + rect.h / 2 - 15}px`, width: `${w}px` });
+  $("canvas").appendChild(input);
+  input.focus();
+  input.select();
+  const valid = (v: string): boolean => v === id || (isValidId(v) && !state.model?.nodes.has(v));
+  input.addEventListener("input", () => input.classList.toggle("invalid", !valid(input.value)));
+  let closed = false;
+  const close = (commit: boolean): void => {
+    if (closed) return;
+    closed = true;
+    input.remove();
+    $("canvas").focus();
+    const to = input.value;
+    if (!commit || to === id || !valid(to)) return;
+    // Re-key the layout first so the renamed node keeps its place and its lines keep their routes.
+    const nodes: Record<string, NodeLayout> = {};
+    for (const [k, v] of Object.entries(state.layout.nodes)) nodes[k === id ? to : k] = v;
+    const edges: Record<string, EdgeLayout> = {};
+    for (const [k, v] of Object.entries(state.layout.edges)) edges[renameEdgeId(k, id, to)] = v;
+    const before = state.layout;
+    state.layout = { ...state.layout, nodes, edges };
+    if (edit((text) => renameId(text, id, to), "input.spider.rename-id")) state.selected = { type: "node", id: to };
+    else state.layout = before;
+  };
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") close(true);
+    else if (e.key === "Escape") close(false);
+  });
+  input.addEventListener("blur", () => close(true));
+  input.addEventListener("pointerdown", (e) => e.stopPropagation());
+}
+
 function unpin(): void {
   const selNode = state.selected?.type === "node" ? state.selected.id : undefined;
   const ids = selNode ? [selNode] : Object.keys(state.layout.nodes);
@@ -726,6 +774,17 @@ setupSplit(document.querySelector<HTMLElement>(".split")!, $("divider"));
 setupZoom(canvas, $("zoom"));
 $("unpin").addEventListener("click", unpin);
 $("reset-route").addEventListener("click", resetRoute);
+/** The diagram as it would be exported (no selection, handles or hit areas). */
+const cleanSvg = (): string | undefined => state.model && state.profile && renderSvg(state.model, state.profile.profile, state.layout);
+const baseName = doc.name.replace(/\.spd$/, "");
+$("export-svg").addEventListener("click", () => {
+  const svg = cleanSvg();
+  if (svg) exportSvg(svg, baseName);
+});
+$("export-png").addEventListener("click", () => {
+  const svg = cleanSvg();
+  if (svg) void exportPng(svg, baseName).catch((err: unknown) => console.warn("[spider] PNG export failed:", err));
+});
 $("reset").addEventListener("click", () => {
   state.commitPending = true;
   void recompile(code.text(), { reset: "unpinned" });
@@ -752,6 +811,10 @@ canvasEl.addEventListener("keydown", (e) => {
   else if (!mod && zoomKey(canvas, e.key)) e.preventDefault();
   else if (e.key === "u") unpin();
   else if (e.key === "r") resetRoute();
+  else if (e.key === "i" && state.selected?.type === "node") {
+    e.preventDefault();
+    openRenameId(state.selected.id);
+  }
   else if (e.key === "Escape") select(undefined);
 });
 
@@ -774,7 +837,7 @@ events.addEventListener("layout", (e) => {
 const hint = document.createElement("div");
 hint.className = "hint";
 hint.textContent =
-  "drag: move/pin · drop on a box: move inside · ⊕ handle: connect · line: drag its handles · R: reset route · double-click/F2: rename · Del: delete · Ctrl+Z: undo · +/−/0: zoom · F: fit";
+  "drag: move/pin · drop on a box: move inside · ⊕ handle: connect · line: drag its handles · R: reset route · double-click/F2: rename · I: rename id · Del: delete · Ctrl+Z: undo · +/−/0: zoom · F: fit";
 canvasEl.appendChild(hint);
 
 await recompile(doc.text);

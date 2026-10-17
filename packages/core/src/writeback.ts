@@ -294,3 +294,36 @@ export function moveNode(source: string, id: string, newParent: string | undefin
   // node was the anchor; shift such insertions to the end of the removed range.
   return [remove, ...insert.map((e) => (e.span.start > remove.span.start && e.span.start < remove.span.end ? { ...e, span: { start: remove.span.end, end: remove.span.end } } : e))];
 }
+
+/** True if `id` is a valid node id (same rule as the lexer's identifiers, minus keywords). */
+export function isValidId(id: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(id) && id !== "use" && id !== "as" && id !== "true" && id !== "false";
+}
+
+/**
+ * Rename a node id everywhere it is used: its declaration and every edge end. Throws if the
+ * new id is invalid or already taken.
+ */
+export function renameId(source: string, from: string, to: string): TextEdit[] {
+  if (from === to) return [];
+  if (!isValidId(to)) throw new Error(`"${to}" is not a valid id`);
+  const doc = load(source);
+  if (doc.model.nodes.has(to)) throw new Error(`id "${to}" is already used`);
+  const { item } = nodeStmt(doc, from);
+  const edits: TextEdit[] = [];
+  if (item.id) edits.push({ span: item.id.span, newText: to });
+  for (const e of doc.model.edges.values()) {
+    const { item: stmt } = edgeStmt(doc, e.id);
+    if (e.source === from) edits.push({ span: stmt.source.span, newText: to });
+    if (e.target === from && stmt.target) edits.push({ span: stmt.target.span, newText: to });
+  }
+  return edits;
+}
+
+/** Edge id after renaming node `from` to `to` (edge ids are derived from their ends). */
+export function renameEdgeId(edgeId: string, from: string, to: string): string {
+  const m = /^(.*)->(.*?)(#\d+)?$/.exec(edgeId);
+  if (!m) return edgeId;
+  const [, s, t, n] = m;
+  return `${s === from ? to : s}->${t === from ? to : t}${n ?? ""}`;
+}

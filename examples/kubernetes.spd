@@ -1,0 +1,23 @@
+# Custom profile example: ACME's own Kubernetes kinds (examples/profiles/acme/k8s),
+# used next to the built-in architecture profile under the alias "k8s".
+use base/architecture
+use acme/k8s@1 as k8s
+
+user dev "Customer"
+
+k8s.cluster prod "prod cluster" {
+  k8s.namespace shop "shop" {
+    k8s.ingress web_in "web ingress"
+    k8s.service web_svc "web-svc"
+    k8s.deployment web "web" { image: "acme/web:1.4"  replicas: 3 }
+    k8s.configmap web_cfg "web-config"
+  }
+}
+
+db orders_db "Orders DB" { engine: "Postgres" }
+
+dev -> web_in : "HTTPS"
+web_in -> web_svc
+web_svc -> web
+web_cfg -> web : k8s.mounts
+web -> orders_db : data "SQL"

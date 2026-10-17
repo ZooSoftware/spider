@@ -6,14 +6,16 @@ import { join } from "node:path";
 import { ARROW_STUB, BORDER_GAP, type Point } from "@spider/layout";
 import { compile } from "./compile.ts";
 
-const EXAMPLES = ["checkout", "platform", "signup-flow"];
+const EXAMPLES = ["checkout", "platform", "signup-flow", "kubernetes"];
+const EXAMPLES_DIR = join(import.meta.dir, "../../../examples");
+const searchPaths = [EXAMPLES_DIR, join(EXAMPLES_DIR, "profiles")];
 const len = (a: Point, b: Point): number => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
 
 describe.each(EXAMPLES)("%s", (name) => {
-  const text = readFileSync(join(import.meta.dir, "../../../examples", `${name}.spd`), "utf8");
+  const text = readFileSync(join(EXAMPLES_DIR, `${name}.spd`), "utf8");
 
   test("B1: every arrow end has a straight run of at least arrowhead + 12px", async () => {
-    const { model, profile, layout } = await compile(text, { reset: true });
+    const { model, profile, layout } = await compile(text, { reset: true, searchPaths });
     const bad: string[] = [];
     for (const e of model.edges.values()) {
       const pts = layout.edges[e.id]?.points ?? [];
@@ -29,7 +31,7 @@ describe.each(EXAMPLES)("%s", (name) => {
   });
 
   test("B2: no segment runs along a container border", async () => {
-    const { model, layout } = await compile(text, { reset: true });
+    const { model, layout } = await compile(text, { reset: true, searchPaths });
     const borders = [...model.nodes.values()]
       .filter((n) => n.isContainer)
       .flatMap((n) => {
@@ -57,4 +59,12 @@ describe.each(EXAMPLES)("%s", (name) => {
     }
     expect(bad).toEqual([]);
   });
+});
+
+test("kubernetes example: custom profile loads with no diagnostics", async () => {
+  const text = readFileSync(join(EXAMPLES_DIR, "kubernetes.spd"), "utf8");
+  const { diagnostics, profile } = await compile(text, { reset: true, searchPaths });
+  expect(diagnostics).toEqual([]);
+  expect(profile.nodes["k8s.deployment"]?.iconSvg).toContain("<svg");
+  expect(profile.edges["k8s.mounts"]?.style).toBe("dotted");
 });

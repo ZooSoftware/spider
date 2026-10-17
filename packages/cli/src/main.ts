@@ -3,7 +3,8 @@
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
-import type { Diagnostic } from "@spider/core";
+import { parseModel, type Diagnostic, type UseDecl } from "@spider/core";
+import { loadProfiles, profileCheatSheet } from "@spider/profiles";
 import { parseLayoutFile, serializeLayoutFile, type LayoutFile } from "@spider/layout";
 import { compile } from "@spider/render";
 import { formatDiagnostic } from "./diagnostics.ts";
@@ -13,6 +14,7 @@ const USAGE = `Usage:
   spider check <file.spd>                                   report diagnostics only
   spider layout <file.spd> [--reset]                        update layout sidecar only
   spider dev <file.spd> [--port 4321]                       open the two-way editor
+  spider profile-doc <file.spd | profile>                   print the AI cheat sheet (Markdown)
 
 The layout sidecar is <file.spd>.layout.json next to the diagram.
 Profiles are searched in the diagram's folder, ./profiles, then the built-ins.`;
@@ -44,7 +46,7 @@ function parseArgs(argv: string[]): Args {
 
 async function main(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
-  if (!args.cmd || args.cmd === "help" || !["build", "check", "layout", "dev"].includes(args.cmd)) {
+  if (!args.cmd || args.cmd === "help" || !["build", "check", "layout", "dev", "profile-doc"].includes(args.cmd)) {
     console.log(USAGE);
     return args.cmd && args.cmd !== "help" ? 2 : 0;
   }
@@ -52,6 +54,8 @@ async function main(argv: string[]): Promise<number> {
     console.error(`spider ${args.cmd}: missing <file.spd>\n\n${USAGE}`);
     return 2;
   }
+
+  if (args.cmd === "profile-doc") return profileDoc(args.file);
 
   if (args.cmd === "dev") {
     const { startDevServer } = await import("@spider/editor");
@@ -98,6 +102,24 @@ async function main(argv: string[]): Promise<number> {
   }
   console.error(`${result.model.nodes.size} nodes, ${result.model.edges.size} edges · ${errors} error(s), ${warnings} warning(s)`);
   return errors > 0 ? 1 : 0;
+}
+
+/** Cheat sheet for the profiles a diagram uses, or for one profile given by name. */
+async function profileDoc(target: string): Promise<number> {
+  let uses: UseDecl[];
+  let dir = process.cwd();
+  if (target.endsWith(".spd")) {
+    const file = resolve(target);
+    dir = dirname(file);
+    uses = parseModel(await readFile(file, "utf8")).model.uses;
+  } else {
+    uses = [{ profile: target, span: { start: 0, end: 0 } }];
+  }
+  const { profile, diagnostics } = await loadProfiles(uses, { searchPaths: [dir, resolve(dir, "profiles"), resolve("profiles")] });
+  for (const d of diagnostics) console.error(`${d.severity} ${d.code}: ${d.message}`);
+  if (Object.keys(profile.nodes).length === 0) return 1;
+  console.log(profileCheatSheet(profile));
+  return 0;
 }
 
 async function toPng(svgPath: string): Promise<void> {
