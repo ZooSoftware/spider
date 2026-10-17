@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spider</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <span class="brand">spider</span>
+      <span id="file" class="file"></span>
+      <span class="spacer"></span>
+      <button id="fit" title="Fit diagram to view (F)">Fit</button>
+      <button id="unpin" title="Unpin selected node (U)" disabled>Unpin</button>
+      <button id="reset" title="Discard all positions and lay out from scratch">Reset layout</button>
+      <span id="status" class="status"></span>
+    </header>
+    <main class="split">
+      <section id="code" class="code"></section>
+      <section id="canvas" class="canvas" tabindex="0"></section>
+    </main>
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>

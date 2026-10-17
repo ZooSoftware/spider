@@ -1,0 +1,54 @@
+:root {
+  --bg: #ffffff;
+  --panel: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --error: #dc2626;
+  --warning: #d97706;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  color: var(--text);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--bg); }
+body { display: flex; flex-direction: column; }
+
+.bar {
+  display: flex; align-items: center; gap: 8px;
+  height: 44px; padding: 0 12px;
+  border-bottom: 1px solid var(--border); background: var(--panel);
+}
+.brand { font-weight: 700; letter-spacing: 0.02em; }
+.file { color: var(--muted); font-family: ui-monospace, monospace; }
+.spacer { flex: 1; }
+.status { min-width: 180px; text-align: right; color: var(--muted); }
+.status .err { color: var(--error); }
+.status .warn { color: var(--warning); }
+button {
+  font: inherit; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+}
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: default; }
+
+.split { flex: 1; display: grid; grid-template-columns: minmax(320px, 38%) 1fr; min-height: 0; }
+.code { border-right: 1px solid var(--border); min-height: 0; overflow: hidden; }
+.code .cm-editor { height: 100%; }
+.code .cm-scroller { font-family: ui-monospace, "JetBrains Mono", Menlo, monospace; font-size: 13px; }
+
+.canvas { position: relative; overflow: hidden; background: #fbfcfe; outline: none; cursor: grab; }
+.canvas.panning { cursor: grabbing; }
+.canvas .stage { position: absolute; inset: 0; }
+.canvas .stage > svg { width: 100%; height: 100%; display: block; user-select: none; }
+.canvas .spd-bg { fill: transparent; }
+.canvas .spd-node { cursor: move; }
+.canvas .spd-sel { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; pointer-events: none; }
+.canvas .spd-handle { fill: #fff; stroke: var(--accent); stroke-width: 1.5; cursor: nwse-resize; }
+.canvas .spd-pin { fill: var(--accent); pointer-events: none; }
+.canvas.dragging .spd-node, .canvas.dragging { cursor: grabbing; }
+.hint {
+  position: absolute; left: 12px; bottom: 10px; color: var(--muted); font-size: 12px;
+  background: rgba(255, 255, 255, 0.85); padding: 2px 6px; border-radius: 4px; pointer-events: none;
+}

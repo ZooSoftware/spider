@@ -12,6 +12,7 @@ const USAGE = `Usage:
   spider build <file.spd> [-o out.svg] [--png] [--reset]   render SVG, update layout sidecar
   spider check <file.spd>                                   report diagnostics only
   spider layout <file.spd> [--reset]                        update layout sidecar only
+  spider dev <file.spd> [--port 4321]                       open the two-way editor
 
 The layout sidecar is <file.spd>.layout.json next to the diagram.
 Profiles are searched in the diagram's folder, ./profiles, then the built-ins.`;
@@ -22,6 +23,7 @@ interface Args {
   out?: string;
   png: boolean;
   reset: boolean;
+  port?: number;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -31,6 +33,7 @@ function parseArgs(argv: string[]): Args {
     if (a === "-o" || a === "--out") args.out = argv[++i];
     else if (a === "--png") args.png = true;
     else if (a === "--reset") args.reset = true;
+    else if (a === "--port") args.port = Number(argv[++i]);
     else if (a === "-h" || a === "--help") args.cmd = "help";
     else if (!args.cmd) args.cmd = a;
     else if (!args.file) args.file = a;
@@ -41,13 +44,20 @@ function parseArgs(argv: string[]): Args {
 
 async function main(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
-  if (!args.cmd || args.cmd === "help" || !["build", "check", "layout"].includes(args.cmd)) {
+  if (!args.cmd || args.cmd === "help" || !["build", "check", "layout", "dev"].includes(args.cmd)) {
     console.log(USAGE);
     return args.cmd && args.cmd !== "help" ? 2 : 0;
   }
   if (!args.file) {
     console.error(`spider ${args.cmd}: missing <file.spd>\n\n${USAGE}`);
     return 2;
+  }
+
+  if (args.cmd === "dev") {
+    const { startDevServer } = await import("@spider/editor");
+    const server = await startDevServer({ file: args.file, port: args.port });
+    console.error(`spider dev  ${resolve(args.file)}\n            ${server.url}`);
+    await new Promise(() => {});
   }
 
   const file = resolve(args.file);

@@ -92,13 +92,22 @@ and confirm the layout stays stable.
 
 ## Phase 5 — Editor: code ⇄ canvas, geometric edits  ⭐ Review milestone 2
 
-- [ ] `spider dev <file.spd>`: Bun server that serves the editor and reads/writes the
+- [x] `spider dev <file.spd>`: Bun server that serves the editor and reads/writes the
       `.spd` + layout files, and watches for external changes
-- [ ] Editor UI: CodeMirror 6 (left) + SVG canvas (right), pan/zoom
-- [ ] Code → canvas: live re-parse + incremental layout as you type; diagnostics shown inline
-- [ ] Canvas geometric edits → layout file: drag node (auto-pins), resize, unpin,
+- [x] Editor UI: CodeMirror 6 (left) + SVG canvas (right), pan/zoom
+- [x] Code → canvas: live re-parse + incremental layout as you type; diagnostics shown inline
+- [x] Canvas geometric edits → layout file: drag node (auto-pins), resize, unpin,
       "reset layout"
-- [ ] Edges re-route live while dragging
+- [x] Edges re-route live while dragging
+
+Implementation notes:
+- Parse, layout, routing and render run **in the browser**; the server only does file IO,
+  profile loading and SSE for external changes. Server binds to 127.0.0.1.
+- Positions of nodes that vanish while typing (e.g. an id mid-edit) are remembered for the
+  session and restored when the id comes back.
+- **Reset layout** re-lays out unpinned nodes around pinned ones; **Unpin all** + reset =
+  fresh layout. (`spider build --reset` still discards everything.)
+- Resize handle only on leaf nodes (containers fit their children).
 
 **You review:** type in the code and watch the diagram update; drag nodes, save,
 reload, and confirm positions persist and the code is untouched.

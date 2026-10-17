@@ -4,13 +4,19 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/server.ts"
   },
   "dependencies": {
+    "@codemirror/commands": "^6",
+    "@codemirror/language": "^6",
+    "@codemirror/lint": "^6",
+    "@codemirror/state": "^6",
+    "@codemirror/view": "^6",
     "@spider/core": "workspace:*",
+    "@spider/layout": "workspace:*",
     "@spider/profile-schema": "workspace:*",
     "@spider/profiles": "workspace:*",
-    "@spider/layout": "workspace:*",
-    "@spider/render": "workspace:*"
+    "@spider/render": "workspace:*",
+    "codemirror": "^6"
   }
 }
