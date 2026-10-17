@@ -1,0 +1,5 @@
+use base/arch@
+zone vpc "VPC" {
+  service api "API" { runtime: "node"
+  db orders
+  api -> orders :

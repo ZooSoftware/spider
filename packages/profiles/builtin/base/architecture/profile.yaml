@@ -1,0 +1,99 @@
+# Built-in architecture profile: services, data stores, messaging and trust zones.
+# Uses the same format as user profiles (see DESIGN.md §4).
+name: base/architecture
+version: 0.1.0
+description: Software architecture diagrams (services, data stores, queues, zones).
+
+nodes:
+  service:
+    description: A deployable application or API that runs code.
+    icon: icons/service.svg
+    shape: rounded
+    props: { tech: string, owner: string, replicas: number }
+    style: { stroke: "#2563eb" }
+  function:
+    description: A serverless function or scheduled job.
+    icon: icons/function.svg
+    shape: rounded
+    props: { runtime: string, trigger: string }
+  db:
+    description: A database storing persistent, queryable data.
+    icon: icons/db.svg
+    shape: cylinder
+    size: [120, 70]
+    props: { engine: string }
+    layout: { layer: last }
+  cache:
+    description: An in-memory cache (e.g. a key-value store).
+    icon: icons/cache.svg
+    shape: hexagon
+    props: { engine: string, ttl: string }
+  queue:
+    description: A message queue, topic or event stream.
+    icon: icons/queue.svg
+    shape: queue
+    size: [140, 50]
+    props: { engine: string }
+  storage:
+    description: Object or file storage for blobs and files.
+    icon: icons/storage.svg
+    shape: rect
+  external:
+    description: A third-party system outside your control.
+    icon: icons/external.svg
+    shape: cloud
+    props: { vendor: string }
+  user:
+    description: A person or client using the system.
+    icon: icons/user.svg
+    shape: person
+    size: [80, 80]
+    label: below
+    layout: { layer: first }
+  zone:
+    description: A trust or network boundary (VPC, subnet, region, cluster).
+    icon: icons/zone.svg
+    shape: rect
+    container: true
+    style: { dashed: true }
+  group:
+    description: A logical grouping (team, domain, bounded context).
+    icon: icons/group.svg
+    shape: rounded
+    container: true
+
+edges:
+  calls:
+    description: Synchronous request/response (HTTP, gRPC).
+    style: solid
+    arrow: end
+  async:
+    description: Asynchronous message or event.
+    style: dashed
+    arrow: end
+  data:
+    description: Data flow, replication or batch transfer.
+    style: dotted
+    arrow: end
+defaultEdge: calls
+
+rules:
+  - forbid: user -> db
+    message: Users must not access databases directly
+    severity: warning
+
+theme:
+  background: "#ffffff"
+  fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif"
+  fontSize: 13
+  nodeFill: "#ffffff"
+  nodeStroke: "#94a3b8"
+  textColor: "#0f172a"
+  edgeColor: "#64748b"
+  containerFill: "#f8fafc"
+  containerStroke: "#cbd5e1"
+
+layout:
+  direction: RIGHT
+  nodeSpacing: 40
+  layerSpacing: 80

@@ -1,0 +1,7 @@
+   service	  api   "API"{runtime:"node"replicas:3
+
+
+      }
+zone z{service x service y} x->y:calls"lbl"   a   ->   b
+	 
+service a "no trailing newline" { flag: true }

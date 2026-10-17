@@ -1,0 +1,13 @@
+use
+service api "API" {
+  runtime: 
+  replicas: 3
+  42 "stray"
+}
+api ->
+} oops
+db "no id"
+zone z {
+  service inner "unterminated
+  inner -> api : calls "ok"
+$$$ @ / . 

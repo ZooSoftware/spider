@@ -1,0 +1,12 @@
+use base/architecture
+use mycompany/k8s@1.2 as k8s
+# comment
+zone vpc "VPC" {
+  service api "API Gateway" { runtime: "node"  replicas: 3 }
+  db orders_db "Orders DB"
+  api -> orders_db : calls "SQL"
+}
+vpc2 main { lambda fn "Checkout"  rds db "Orders" }
+k8s.pod worker
+api -> worker
+api -> worker      # second edge between same pair -> id "api->worker#2"

@@ -1,0 +1,20 @@
+# header
+use base/architecture # trailing
+# before node
+zone vpc # after id
+  "VPC" # after label
+{ # after brace
+  # inside
+  service api # x
+  "API" { # y
+    port: 8080 # after value
+    # between props
+    tls: true
+  } # after close
+  # last in block
+} # after outer close
+# between
+api -> vpc : calls # after kind
+  "label" # after edge label
+#no space comment ## double
+# trailing comment no newline

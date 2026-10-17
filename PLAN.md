@@ -23,11 +23,11 @@ Chosen to keep the prototype simple. All can be revisited after review.
 
 ## Phase 0 — Scaffold
 
-- [ ] Bun workspace root (`package.json` workspaces, `tsconfig.base.json`, strict ESM)
-- [ ] Empty packages: `core`, `profile-schema`, `profiles`, `layout`, `render`, `cli`, `editor`
-- [ ] Root scripts: `bun test`, `bun run typecheck` (`tsc -b`), `bun run build`
-- [ ] `.gitignore`, `examples/` folder
-- [ ] Update `CLAUDE.md` Commands section
+- [x] Bun workspace root (`package.json` workspaces, `tsconfig.json`, strict ESM; packages export `src/index.ts` directly)
+- [x] Empty packages: `core`, `profile-schema`, `profiles`, `layout`, `render`, `cli`, `editor`
+- [x] Root scripts: `bun test`, `bun run typecheck` (`tsc --noEmit`), `bun run spider`
+- [x] `.gitignore`, `examples/` folder
+- [x] Update `CLAUDE.md` Commands section
 
 **Done when:** `bun install && bun test && bun run typecheck` pass on the empty workspace.
 
@@ -65,8 +65,10 @@ Chosen to keep the prototype simple. All can be revisited after review.
 ## Phase 3 — Layout
 
 - [ ] Layout file format (`*.layout.json`): `{ version, nodes: {id: {x,y,w,h,pinned}}, edges: {id: {points, sourcePort, targetPort}} }`
-- [ ] ELK adapter: model + profile hints → ELK graph (layered, orthogonal edges, ports,
-      nested containers) → positions + routes
+- [ ] ELK adapter for **placement**: model + profile hints → ELK graph (layered, ports,
+      nested containers) → positions
+- [ ] Own synchronous orthogonal **router** (obstacle avoidance, ports, bend minimization,
+      parallel-segment nudging). Used for all final routes, and by the editor while dragging
 - [ ] Incremental layout: pinned nodes fixed, existing nodes kept close, new nodes placed;
       manually routed edges keep their waypoints
 - [ ] Merge + orphan cleanup

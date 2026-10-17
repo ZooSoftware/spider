@@ -1,0 +1,17 @@
+name: k8s
+version: 2.0.0
+nodes:
+  pod: { description: A pod. }
+  service: { description: A k8s service. }
+  namespace:
+    description: A k8s namespace.
+    container: true
+    allows: [pod, service]
+edges:
+  routes:
+    allowed: [service -> pod]
+defaultEdge: routes
+rules:
+  - forbid: "pod -> *"
+    message: Pods should not call out
+    severity: warning

@@ -181,6 +181,38 @@ k8s.pod worker
 
 The syntax is **generic** (`kind id "label" { props }`, `a -> b : kind "label"`). Profiles give meaning to kinds; they **do not change the grammar**. This keeps parsing, write-back and AI generation simple.
 
+### 4.4 Grammar v0
+
+Implemented in `packages/core` (`lexer.ts`, `parser.ts`). Whitespace and newlines are not significant, and several statements may share a line, with one exception: the token that must follow `use`, `@`, `as`, `->`, `:`, `.` or a node kind has to be on the same line. That way a half-typed line doesn't swallow the statement on the next line.
+
+```
+file    := stmt*
+stmt    := use | edge | node                 # inside blocks: also prop
+use     := 'use' profile ('@' version)? ('as' IDENT)?
+profile := IDENT ('/' IDENT)*
+version := [0-9A-Za-z.-]+                    # no spaces, e.g. 1.2.0-beta.1
+edge    := IDENT '->' IDENT (':' IDENT?)? STRING?     # IDENT followed by '->'
+node    := kind IDENT STRING? block?
+kind    := IDENT ('.' IDENT)?                # namespaced: k8s.pod
+block   := '{' (prop | stmt)* '}'
+prop    := IDENT ':' value                   # IDENT followed by ':'
+value   := STRING | NUMBER | 'true' | 'false'
+IDENT   := [A-Za-z_][A-Za-z0-9_]*
+NUMBER  := -?[0-9]+(.[0-9]+)?
+STRING  := '"' ... '"'                       # single line; escapes \" \\ \n
+comment := '#' to end of line
+```
+
+- **Keywords are positional.** `use` is a keyword only at the start of a statement that isn't an edge or prop (`use -> x` is an edge). `as` is a keyword only inside `use`.
+- **Edges.** In `a -> b : "REST"` the edge has a label and no kind. Edge ids are `a->b`, then `a->b#2`, and so on, in source order. Edges inside blocks are global.
+- **Containers.** A node is a container when its block holds at least one child node. A block may mix props and statements.
+- **Model diagnostics:**
+  - duplicate node id: error, the first node is kept
+  - edge to an unknown id: error, the edge is kept
+  - duplicate prop key: warning, the last value wins
+- **Losslessness.** Every token carries leading trivia and trailing trivia. Trailing trivia runs up to and including the first line break. `print(parse(text)) === text` holds for any input, including invalid input.
+- **Errors.** Parse errors never throw. Skipped tokens become `Error` items, and parsing resumes at the next identifier, `}` or the end of the file.
+
 ---
 
 ## 5. Tech stack

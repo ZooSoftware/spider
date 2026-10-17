@@ -1,0 +1,41 @@
+# Built-in flowchart profile: proves built-in diagram types are plain profiles.
+name: base/flowchart
+version: 0.1.0
+description: Simple flowcharts (start/end, steps, decisions, input/output).
+
+nodes:
+  start:
+    description: Where the flow begins.
+    shape: rounded
+    size: [100, 50]
+  end:
+    description: Where the flow ends.
+    shape: rounded
+    size: [100, 50]
+  process:
+    description: A step or action.
+    shape: rect
+  decision:
+    description: A yes/no question; label outgoing edges with the answer.
+    shape: diamond
+    size: [120, 80]
+  io:
+    description: Input or output (read, print, receive).
+    shape: parallelogram
+
+edges:
+  flow:
+    description: Next step in the flow.
+    style: solid
+    arrow: end
+defaultEdge: flow
+
+theme:
+  fontFamily: "Inter, system-ui, sans-serif"
+  nodeFill: "#ffffff"
+  nodeStroke: "#64748b"
+  textColor: "#0f172a"
+  edgeColor: "#475569"
+
+layout:
+  direction: DOWN

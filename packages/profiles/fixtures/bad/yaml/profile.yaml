@@ -1,0 +1,4 @@
+name: bad/yaml
+nodes:
+  a: [unclosed
+  b: {

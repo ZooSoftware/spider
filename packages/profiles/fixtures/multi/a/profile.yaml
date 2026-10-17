@@ -1,0 +1,5 @@
+name: multi/a
+nodes:
+  x: { shape: rect, description: from a }
+  y: { shape: rect }
+theme: { fontSize: 10, textColor: red }

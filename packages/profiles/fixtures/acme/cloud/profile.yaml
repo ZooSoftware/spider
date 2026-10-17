@@ -1,0 +1,25 @@
+name: acme/cloud
+version: 1.2.3
+extends: base/architecture
+nodes:
+  service:
+    shape: rect
+    props: { lang: string }
+    style: { fill: "#eef" }
+  lambda:
+    description: A function.
+    icon: icons/lambda.svg
+    props: { memory: number }
+  vpc:
+    container: true
+    allows: [lambda, service]
+edges:
+  async:
+    allowed: [lambda -> queue]
+rules:
+  - forbid: external -> db
+    message: DB must not be exposed
+theme:
+  nodeFill: "#fafafa"
+layout:
+  direction: DOWN

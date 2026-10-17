@@ -1,0 +1,3 @@
+service api "API Gateway — 网关 🚀"
+db data "Données \"quoted\" \\ back\nslash"
+api -> data "→ émoji 👍🏽"

@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<!DOCTYPE svg [<!ENTITY x "boom">]>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" onload="alert(1)">
+  <script>alert(2)</script>
+  <path d="M4 20L12 4l8 16" stroke="currentColor"/>
+</svg>

@@ -1,0 +1,7 @@
+name: multi/b
+nodes:
+  x: { shape: circle }
+edges:
+  e: { style: dashed }
+defaultEdge: e
+theme: { fontSize: 12 }

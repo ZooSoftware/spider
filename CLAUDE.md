@@ -57,5 +57,12 @@ packages/
 
 ## Commands
 
-_To be filled in once scaffolded_ (expected: `bun install`, `bun test`,
-`bun run typecheck`, `bun run spider build <file>`).
+```sh
+bun install
+bun test                    # all tests; `bun test packages/core` for one package
+bun run typecheck           # tsc --noEmit over packages/*/src
+bun run spider <args>       # CLI (from Phase 4)
+```
+
+Packages are consumed as TypeScript source (`exports: ./src/index.ts`); no build step.
+Shared contracts: `core/src/model.ts`, `profile-schema/src/index.ts`, `layout/src/layout-file.ts`.

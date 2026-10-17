@@ -1,0 +1,6 @@
+name: bad/icon
+nodes:
+  a:
+    icon: ../../acme/cloud/icons/lambda.svg
+  b:
+    icon: icons/missing.svg

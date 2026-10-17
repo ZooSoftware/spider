@@ -5,7 +5,9 @@ import { z } from "zod";
 export const Side = z.enum(["left", "right", "top", "bottom"]);
 export type Side = z.infer<typeof Side>;
 
-export const Shape = z.enum(["rect", "rounded", "cylinder", "circle", "hexagon", "person", "cloud", "queue"]);
+export const Shape = z.enum([
+  "rect", "rounded", "cylinder", "circle", "hexagon", "person", "cloud", "queue", "diamond", "parallelogram",
+]);
 export type Shape = z.infer<typeof Shape>;
 
 export const PropType = z.enum(["string", "number", "boolean"]);

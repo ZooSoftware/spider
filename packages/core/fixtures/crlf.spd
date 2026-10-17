@@ -1,0 +1,5 @@
+use base/architecture
+zone vpc "VPC" {
+  service api "API"
+}
+api -> vpc

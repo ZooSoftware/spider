@@ -1,0 +1,5 @@
+name: multi/c
+version: 1.20.0
+extends: [multi/a, multi/b]
+nodes:
+  y: { description: from c }
