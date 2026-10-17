@@ -1,0 +1,14 @@
+{
+  "name": "@spider/profiles",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "yaml": "^2",
+    "@spider/core": "workspace:*",
+    "@spider/profile-schema": "workspace:*"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@spider/layout",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "elkjs": "^0.9",
+    "@spider/core": "workspace:*",
+    "@spider/profile-schema": "workspace:*"
+  }
+}

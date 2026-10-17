@@ -1,0 +1,14 @@
+{
+  "name": "@spider/render",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@spider/core": "workspace:*",
+    "@spider/profile-schema": "workspace:*",
+    "@spider/layout": "workspace:*"
+  }
+}
