@@ -52,3 +52,86 @@ clearly away from it (≥ 8–10px), never runs along it.
 
 **Done when:** a router test asserts no segment runs parallel to a container border
 within the margin; both examples look clean.
+
+---
+
+## B3 — Text should scale when a node is resized (medium)
+
+**Problem:** resizing a node in the editor changes the box, but the label keeps its font
+size, so a big box has small text (and a small box overflows/ellipsizes early).
+
+**Expected:** label (and subtitle, icon) scale with the node size.
+
+**Approach ideas:**
+- Derive a scale from the node's size vs. its kind's default size:
+  `scale = clamp(min(w / w0, h / h0), 0.75, 2)`; apply to font size, line height,
+  icon size and paddings in `render/src/render.ts`. Nothing new stored in the layout file.
+- Keep word wrapping based on the scaled font and the new width.
+- Consider an explicit `fontScale` in the layout entry later, if users want big boxes with
+  normal text.
+
+**Done when:** render test: a node at 2× default size renders a larger font than at 1×;
+resizing in the editor visibly scales the text.
+
+---
+
+## B4 — Move lines, not only nodes (high)
+
+**Problem:** only nodes can be moved. When lines overlap or take a bad path, the user has
+no way to fix a single line; they can only move nodes around it.
+
+**Expected:** like draw.io, the user can grab a line segment and drag it (perpendicular to
+the segment) to re-route it, and drag a line end along a node side to change the port.
+
+**Approach ideas:**
+- Editor: hit-test segments (wide invisible stroke), drag moves the segment and adjusts the
+  two neighbouring segments so the route stays orthogonal; add a bend if needed.
+- Store as `manual: true` + `points` in the layout file (already supported by the router:
+  manual edges keep their points and only re-snap endpoints).
+- Dragging an endpoint along a side stores `sourcePort` / `targetPort` (and offset).
+- When a connected node moves later: keep the manual interior points, fix only the
+  segments next to the moved node so the line stays orthogonal.
+- "Reset route" action (per edge) to go back to automatic routing; manual edges get a
+  small marker like pinned nodes.
+
+**Done when:** in the editor, a segment can be dragged and the new route persists across
+reload and rebuild; moving a connected node keeps the line orthogonal; reset route works.
+
+---
+
+## B5 — Resizable code panel (low)
+
+**Problem:** the split between code and canvas is fixed (38%).
+
+**Expected:** drag the divider to resize; double-click (or a button) to collapse/expand the
+code panel.
+
+**Approach ideas:** a divider element between the panes updating the grid column width;
+remember the width in `localStorage` (per-viewer convenience); refit nothing, the canvas
+keeps its camera.
+
+**Done when:** divider drags smoothly, width survives reload, collapse works.
+
+---
+
+## B6 — Undo / redo across code and canvas (high)
+
+**Problem:** CodeMirror has undo for typing, but canvas edits (drag, resize, unpin, reset
+layout) cannot be undone, and in Phase 6 canvas edits will also change the code, so the
+two histories must not get out of sync.
+
+**Expected:** `Ctrl+Z` / `Ctrl+Shift+Z` (and `Ctrl+Y`) undo/redo the last user action,
+whether it was typed in the code or done on the canvas; one drag = one undo step; a burst
+of typing = one undo step.
+
+**Approach ideas:**
+- One app-level history of snapshots `{ text, layout, selection }`, pushed per user action
+  (drag end, resize end, unpin, reset, debounced typing burst, Phase 6 structural edits).
+- Route CodeMirror's undo keys to the app history (or keep CM history for text-only and
+  merge via transactions), so there is only one source of truth.
+- Restoring a snapshot writes both files through the normal save path.
+- Cap history size (e.g. 200 steps); history lives in memory for the session.
+- Later: named versions / snapshots (possibly via git) are a separate feature.
+
+**Done when:** a sequence of type → drag → resize → type can be undone step by step and
+redone, with files on disk matching each step.
