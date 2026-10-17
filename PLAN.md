@@ -144,6 +144,56 @@ comments and formatting should be intact.
 
 ---
 
+## Backlog phases (easy → hard)
+
+Fixes from review, ordered by difficulty. Details and "done when" criteria live in
+`BACKLOG.md` (B1–B8). Phase 7 (polish) is deferred until after these.
+
+### Phase 8 — Editor quick wins: B5 + B7  (easy)
+Pure editor UI, no changes to core/layout/render.
+- [ ] B5: draggable divider between code and canvas; double-click collapses/expands the code
+      panel; width remembered in `localStorage`
+- [ ] B7: zoom control in the canvas corner (slider 10–400%, −/+, 100%, Fit); gentler wheel
+      step; slider and wheel stay in sync
+
+### Phase 9 — Text scales with node size: B3  (easy–medium)
+Render only, nothing new stored.
+- [ ] Font size, line height, icon size and padding scale with node size vs. kind default
+      (clamped 0.75×–2×); wrapping uses the scaled font
+- [ ] Render tests; check in the editor while resizing
+
+### Phase 10 — Containers fit their real content: B8  (medium)
+Layout + editor.
+- [ ] Containers always fit their children exactly (drop "pinned only grows")
+- [ ] Container resize handle sets a *minimum* size (never smaller than content)
+- [ ] After a user action, unpinned non-member nodes overlapped by a container are moved out;
+      pinned ones get a warning outline
+- [ ] Layout tests: no non-member inside a container box after drag/resize sequences;
+      container shrinks back when children move closer
+
+### Phase 11 — Router quality: B2 + B1  (medium–hard)
+Router only (`layout/src/router.ts`), verified on the examples and the 100-node graph.
+- [ ] B2: segments never run along a container border (soft obstacle / nudge away ≥ 8–10px)
+- [ ] B1: every edge ends (and starts) with a straight segment ≥ arrowhead + 12px; prefer
+      another side over a too-short stub; render clamps corner radius so it never eats it
+- [ ] Router tests for both properties; perf stays < 16ms for 100 nodes/150 edges
+
+### Phase 12 — Unified undo/redo: B6  (medium–hard)
+Editor architecture.
+- [ ] One app-level history of `{ text, layout, selection }` snapshots per user action
+      (drag end, resize, unpin, reset, typing burst, structural edits)
+- [ ] Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y from both panes use it (CodeMirror history bypassed)
+- [ ] Restoring a snapshot writes both files; cap ~200 steps
+- [ ] Tests on the history module; browser check of type → drag → resize → type undo/redo
+
+### Phase 13 — Move lines: B4  (hard)
+Needs Phase 11 (router handles manual edges cleanly) and Phase 12 (line edits are undoable).
+- [ ] Drag a line segment perpendicular to re-route; neighbours adjust to stay orthogonal
+- [ ] Drag a line end along a node side to change its port
+- [ ] Stored as `manual` points / ports in the layout file; moving a connected node keeps
+      the manual route orthogonal; manual lines get a marker
+- [ ] "Reset route" per line; tests for persistence across reload/rebuild
+
 ## Out of the prototype
 
 libavoid routing, VS Code extension, MCP server, code plugins (`plugin.ts`),
