@@ -7,6 +7,9 @@ paths:
 
 - Parse/layout/route/render run in the browser; the server only does file IO, profile
   loading and SSE. It binds to 127.0.0.1 only.
+- Layers: `app.ts` holds state, history and wiring only. What a gesture does to the layout
+  is a pure function in `commands.ts` (tested in `tests/commands.test.ts`); handles and
+  markers are `overlay.ts`; server calls are `io.ts`. New gesture → add a command + test.
 - Canvas edits that change meaning go through `edit(...)` → `code.apply(...)` (a CodeMirror
   transaction), never by rewriting the file. Layout-only edits change `state.layout`.
 - One history: call `commit()` once at the end of each user action (drag end, resize end,

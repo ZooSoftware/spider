@@ -1,58 +1,58 @@
-// Editor app: keeps code and canvas in sync.
-//  code → canvas: parse, validate, incremental layout, render (debounced as you type).
-//  canvas → layout: drag / resize / unpin / reset only touch the layout sidecar.
+// Editor app: state, history and wiring. Keeps code and canvas in sync.
+//  code → canvas: the engine pipeline (parse, profile, layout, validation) runs as you type.
+//  canvas → layout: drag / resize / line edits / unpin / reset only touch the layout sidecar
+//                   (commands.ts).
 //  canvas → code: connect, delete, rename, add from palette and move into/out of containers
-//  become targeted text edits applied through the code editor.
+//                 become targeted text edits applied through the code editor.
 //  history: one undo/redo stack of { text, layout } snapshots, one step per user action.
+// Other modules: canvas (gestures), code (CodeMirror), overlay (handles), io (server),
+// inline-input, palette, panels, zoom, export.
 import {
   addEdge,
   addNode,
   deleteElements,
-  edgeId,
   isValidId,
   moveNode,
-  renameEdgeId,
   renameId,
   setLabel,
   type Diagnostic,
   type Model,
   type TextEdit,
-  type UseDecl,
 } from "@spider/core";
-import { DEFAULT_NODE_SIZE, type ResolvedProfile } from "@spider/profile-schema";
-import { analyze, layoutDiagnostics, type LoadedProfile } from "@spider/engine";
-import {
-  containerOverlaps,
-  edgeLabelPos,
-  emptyLayout,
-  moveSegment,
-  segmentNormalAxis,
-  sideOf,
-  fitContainers,
-  parseLayoutFile,
-  routeEdges,
-  serializeLayoutFile,
-  type EdgeLayout,
-  type LayoutFile,
-  type NodeLayout,
-  type Point as LayoutPoint,
-} from "@spider/layout";
+import { analyze, layoutDiagnostics } from "@spider/engine";
+import { emptyLayout, parseLayoutFile, serializeLayoutFile, type EdgeLayout, type LayoutFile, type NodeLayout } from "@spider/layout";
 import { renderSvg } from "@spider/render";
-import { Canvas, PALETTE_MIME, type Point, type Target } from "./canvas.ts";
+import { Canvas, type Point, type Target } from "./canvas.ts";
 import { createCodeEditor } from "./code.ts";
+import {
+  containerAt,
+  dragEnd,
+  dragSegment,
+  dropRedundantMin,
+  droppedNodeBox,
+  edgeSnapshot,
+  hasCustomRoute,
+  isContainer,
+  moveNodes,
+  nextEdgeId,
+  relayout,
+  renameInLayout,
+  resetRoute as resetRouteOf,
+  resizeNode,
+  subtree,
+  unpin as unpinNodes,
+  type Scene,
+} from "./commands.ts";
 import { exportPng, exportSvg } from "./export.ts";
 import { History } from "./history.ts";
+import { openInlineInput } from "./inline-input.ts";
+import { fetchDoc, ServerIO, type ProfileCache } from "./io.ts";
+import { overlay } from "./overlay.ts";
+import { renderPalette } from "./palette.ts";
 import { setupSplit } from "./panels.ts";
 import { setupZoom, zoomKey } from "./zoom.ts";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
-
-interface ProfileCache {
-  key: string;
-  profile: ResolvedProfile;
-  diagnostics: Diagnostic[];
-  uses: UseDecl[];
-}
 
 const state = {
   model: undefined as Model | undefined,
@@ -70,15 +70,19 @@ const state = {
   pendingRename: undefined as string | undefined,
   /** Positions of nodes that disappeared from the code this session (e.g. an id mid-edit). */
   memory: new Map<string, NodeLayout>(),
-  savedLayout: "",
-  savedText: "",
   generation: 0,
-  saving: 0,
   /** Record a history step when the next recompile finishes (after a code change). */
   commitPending: false,
   /** An undo/redo is being applied; its recompile hasn't settled yet. */
   restoring: false,
 };
+
+/** Model + profile + layout, once the first compile has finished. */
+function scene(): Scene | undefined {
+  return state.model && state.profile ? { model: state.model, profile: state.profile.profile, layout: state.layout } : undefined;
+}
+
+const io = new ServerIO(() => status());
 
 // ---- history ----
 
@@ -91,7 +95,7 @@ interface Snapshot {
 const sameContent = (a: Snapshot, b: Snapshot): boolean => a.text === b.text && a.layout === b.layout;
 const history = new History<Snapshot>(sameContent);
 // `?debug` exposes internals for troubleshooting from the browser console.
-if (new URLSearchParams(location.search).has("debug")) Object.assign(globalThis, { __spider: { history, state } });
+if (new URLSearchParams(location.search).has("debug")) Object.assign(globalThis, { __spider: { history, state, io } });
 
 function snapshot(): Snapshot {
   return { text: code.text(), layout: serializeLayoutFile(state.layout, state.model), selected: state.selected };
@@ -156,49 +160,7 @@ function historyButtons(): void {
   $<HTMLButtonElement>("redo").disabled = !history.canRedo;
 }
 
-// ---- server IO ----
-
-async function putText(text: string): Promise<void> {
-  if (text === state.savedText) return;
-  state.savedText = text;
-  await track(fetch("/api/text", { method: "PUT", body: text }));
-}
-
-async function putLayout(): Promise<void> {
-  if (!state.model) return;
-  const json = serializeLayoutFile(state.layout, state.model);
-  if (json === state.savedLayout) return;
-  state.savedLayout = json;
-  await track(fetch("/api/layout", { method: "PUT", body: json }));
-}
-
-async function track(p: Promise<Response>): Promise<void> {
-  state.saving++;
-  status();
-  try {
-    await p;
-  } finally {
-    state.saving--;
-    status();
-  }
-}
-
-async function profileFor(uses: UseDecl[]): Promise<ProfileCache> {
-  const key = JSON.stringify(uses.map((u) => [u.profile, u.version, u.alias]));
-  if (state.profile?.key === key) return state.profile;
-  const res = await fetch("/api/profile", { method: "POST", body: JSON.stringify(uses) });
-  const { profile, diagnostics } = (await res.json()) as { profile: ResolvedProfile; diagnostics: Diagnostic[] };
-  return { key, profile, diagnostics, uses };
-}
-
-/** Profile diagnostics point at `use` spans from when they were loaded; move them to the current spans. */
-function remapProfileDiagnostics(cache: ProfileCache, uses: UseDecl[]): Diagnostic[] {
-  return cache.diagnostics.map((d) => {
-    const i = cache.uses.findIndex((u) => u.span.start === d.span?.start && u.span.end === d.span?.end);
-    const span = i >= 0 ? uses[i]?.span : undefined;
-    return span ? { ...d, span } : d;
-  });
-}
+// ---- saving ----
 
 function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number): (...a: A) => void {
   let t: ReturnType<typeof setTimeout> | undefined;
@@ -208,16 +170,12 @@ function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number): (...a
   };
 }
 
-const saveTextSoon = debounce((text: string) => void putText(text), 400);
-const saveLayoutSoon = debounce(() => void putLayout(), 400);
+const saveTextSoon = debounce((text: string) => void io.putText(text), 400);
+const saveLayoutSoon = debounce(() => {
+  if (state.model) void io.putLayout(serializeLayoutFile(state.layout, state.model));
+}, 400);
 
 // ---- code → canvas ----
-
-/** Profiles come from the server (cached per set of `use` declarations). */
-async function loadProfile(uses: UseDecl[]): Promise<LoadedProfile & { cache: ProfileCache }> {
-  const cache = await profileFor(uses);
-  return { profile: cache.profile, diagnostics: remapProfileDiagnostics(cache, uses), cache };
-}
 
 /** The layout to keep: the current one plus remembered positions, or only pinned nodes on reset. */
 function previousLayout(model: Model, reset: boolean): LayoutFile {
@@ -235,7 +193,9 @@ function previousLayout(model: Model, reset: boolean): LayoutFile {
 
 async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promise<void> {
   const gen = ++state.generation;
-  const result = await analyze(text, loadProfile, { previous: (model) => previousLayout(model, !!opts.reset) });
+  const result = await analyze(text, (uses) => io.profile(uses, state.profile), {
+    previous: (model) => previousLayout(model, !!opts.reset),
+  });
   if (gen !== state.generation) return;
   const { model, layout } = result;
   const cache = result.loaded.cache;
@@ -251,7 +211,7 @@ async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promi
   if (sel && !(sel.type === "node" ? model.nodes.has(sel.id) : model.edges.has(sel.id))) state.selected = undefined;
   state.baseDiagnostics = result.diagnostics;
   refreshDiagnostics();
-  if (profileChanged) renderPalette();
+  if (profileChanged) renderPalette($("palette"), Object.values(cache.profile.nodes));
   draw();
   status();
   saveLayoutSoon();
@@ -270,8 +230,9 @@ async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promi
 
 /** Layout-dependent warnings (container overlaps) change on every drag, not only on recompile. */
 function refreshDiagnostics(): void {
-  if (!state.model || !state.profile) return;
-  state.diagnostics = [...state.baseDiagnostics, ...layoutDiagnostics({ model: state.model, profile: state.profile.profile, layout: state.layout })];
+  const s = scene();
+  if (!s) return;
+  state.diagnostics = [...state.baseDiagnostics, ...layoutDiagnostics(s)];
   code.setDiagnostics(state.diagnostics);
   status();
 }
@@ -302,69 +263,10 @@ function drawSoon(): void {
 }
 
 function draw(): void {
-  if (!state.model || !state.profile) return;
-  const svg = renderSvg(state.model, state.profile.profile, state.layout, { interactive: true });
-  canvas.show(svg.replace(/<\/svg>\s*$/, `${overlay()}</svg>`));
-}
-
-const box = (n: NodeLayout, pad: number, cls: string): string =>
-  `<rect class="${cls}" x="${n.x - pad}" y="${n.y - pad}" width="${n.w + 2 * pad}" height="${n.h + 2 * pad}" rx="6"/>`;
-
-function overlay(): string {
-  const parts: string[] = [];
-  const nodes = state.layout.nodes;
-  for (const n of Object.values(nodes)) {
-    if (n.pinned) parts.push(`<circle class="spd-pin" cx="${n.x + n.w - 1}" cy="${n.y + 1}" r="3.5"><title>pinned</title></circle>`);
-  }
-  if (state.model && state.profile) {
-    for (const { node, container } of containerOverlaps(state.model, state.profile.profile, nodes)) {
-      const n = nodes[node];
-      if (n) parts.push(box(n, 5, "spd-warn").replace("/>", `><title>Overlaps "${container}" but is not inside it: drag it out, or into it</title></rect>`));
-    }
-  }
-  const drop = state.dropTarget ? nodes[state.dropTarget] : undefined;
-  if (drop) parts.push(box(drop, 3, "spd-drop"));
-  const sel = state.selected;
-  // Hand-routed lines get a small marker on their first bend (or middle).
-  for (const [id, e] of Object.entries(state.layout.edges)) {
-    if (!e.manual || id === sel?.id) continue;
-    const m = e.points[1] && e.points.length > 2 ? e.points[1] : edgeLabelPos(e.points);
-    if (m) parts.push(`<rect class="spd-manual" x="${m[0] - 3}" y="${m[1] - 3}" width="6" height="6" transform="rotate(45 ${m[0]} ${m[1]})"><title>manual route (R to reset)</title></rect>`);
-  }
-  if (sel?.type === "edge") {
-    const pts = state.layout.edges[sel.id]?.points ?? [];
-    if (pts.length) {
-      parts.push(`<polyline class="spd-sel-edge" points="${pts.map((p) => p.join(",")).join(" ")}"/>`);
-      // A handle in the middle of each segment: drag sideways to move it.
-      for (let k = 0; k + 1 < pts.length; k++) {
-        const [a, b] = [pts[k]!, pts[k + 1]!];
-        const cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2;
-        const vertical = segmentNormalAxis(a, b) === 0;
-        const w = vertical ? 6 : 14, h = vertical ? 14 : 6;
-        parts.push(`<rect class="spd-seg ${vertical ? "v" : "h"}" data-id="${sel.id}" data-k="${k}" x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="2"/>`);
-      }
-      // Handles on both ends: drag along the side, or onto another side of the node.
-      for (const [end, p] of [["source", pts[0]!], ["target", pts[pts.length - 1]!]] as const) {
-        parts.push(`<circle class="spd-end" data-id="${sel.id}" data-end="${end}" cx="${p[0]}" cy="${p[1]}" r="5"/>`);
-      }
-    }
-  } else if (sel?.type === "node" && nodes[sel.id]) {
-    const n = nodes[sel.id]!;
-    parts.push(box(n, 4, "spd-sel"));
-    parts.push(`<rect class="spd-handle" data-id="${sel.id}" x="${n.x + n.w - 1}" y="${n.y + n.h - 1}" width="9" height="9" rx="2"/>`);
-    if (!state.connect) {
-      parts.push(
-        `<g class="spd-connect" data-id="${sel.id}"><title>drag to connect</title><circle cx="${n.x + n.w + 14}" cy="${n.y + n.h / 2}" r="7"/><path d="M${n.x + n.w + 10} ${n.y + n.h / 2}h8M${n.x + n.w + 14} ${n.y + n.h / 2 - 4}v8"/></g>`,
-      );
-    }
-  }
-  const c = state.connect;
-  if (c && nodes[c.from]) {
-    const s = nodes[c.from]!;
-    if (c.over && c.over !== c.from && nodes[c.over]) parts.push(box(nodes[c.over]!, 3, "spd-drop"));
-    parts.push(`<line class="spd-preview" x1="${s.x + s.w / 2}" y1="${s.y + s.h / 2}" x2="${c.pointer.x}" y2="${c.pointer.y}"/>`);
-  }
-  return `<g class="spd-overlay">${parts.join("")}</g>`;
+  const s = scene();
+  if (!s) return;
+  const svg = renderSvg(s.model, s.profile, s.layout, { interactive: true });
+  canvas.show(svg.replace(/<\/svg>\s*$/, `${overlay(s, state)}</svg>`));
 }
 
 function status(): void {
@@ -373,7 +275,7 @@ function status(): void {
   const counts = [errors ? `<span class="err">${errors} error${errors > 1 ? "s" : ""}</span>` : "", warnings ? `<span class="warn">${warnings} warning${warnings > 1 ? "s" : ""}</span>` : ""]
     .filter(Boolean)
     .join(" · ");
-  $("status").innerHTML = `${counts || "no problems"} · ${state.saving ? "saving…" : "saved"}`;
+  $("status").innerHTML = `${counts || "no problems"} · ${io.saving ? "saving…" : "saved"}`;
   const unpin = $<HTMLButtonElement>("unpin");
   const selNode = state.selected?.type === "node" ? state.selected.id : undefined;
   const anyPinned = Object.values(state.layout.nodes).some((n) => n.pinned);
@@ -382,69 +284,10 @@ function status(): void {
   const selEdge = state.selected?.type === "edge" ? state.layout.edges[state.selected.id] : undefined;
   const reset = $<HTMLButtonElement>("reset-route");
   reset.hidden = !selEdge;
-  reset.disabled = !(selEdge?.manual || selEdge?.sourcePort || selEdge?.targetPort);
-}
-
-// ---- palette ----
-
-function renderPalette(): void {
-  const el = $("palette");
-  const kinds = Object.values(state.profile?.profile.nodes ?? {});
-  el.hidden = kinds.length === 0;
-  el.innerHTML = `<div class="pal-title">Drag to add</div>`;
-  for (const k of kinds) {
-    const item = document.createElement("div");
-    item.className = "pal-item";
-    item.draggable = true;
-    item.title = k.description ?? k.kind;
-    item.innerHTML = `<span class="pal-icon">${k.iconSvg ?? ""}</span><span>${k.kind}</span>`;
-    item.addEventListener("dragstart", (e) => {
-      e.dataTransfer?.setData(PALETTE_MIME, k.kind);
-      if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
-    });
-    el.appendChild(item);
-  }
+  reset.disabled = !hasCustomRoute(selEdge);
 }
 
 // ---- canvas → layout / code ----
-
-function isContainer(id: string): boolean {
-  const n = state.model?.nodes.get(id);
-  return !!n && (n.isContainer || n.children.length > 0);
-}
-
-/** Containers (or container kinds) can receive dropped nodes. */
-function acceptsChildren(id: string): boolean {
-  const n = state.model?.nodes.get(id);
-  return !!n && (isContainer(id) || state.profile?.profile.nodes[n.kind]?.container === true);
-}
-
-function subtree(id: string): string[] {
-  const out = [id];
-  for (const c of state.model?.nodes.get(id)?.children ?? []) out.push(...subtree(c));
-  return out;
-}
-
-/** Innermost container whose box contains `p`, ignoring `exclude`. */
-function containerAt(p: Point, exclude: Set<string> = new Set()): string | undefined {
-  let best: string | undefined;
-  let bestArea = Infinity;
-  for (const [id, n] of Object.entries(state.layout.nodes)) {
-    if (exclude.has(id) || !acceptsChildren(id)) continue;
-    if (p.x < n.x || p.x > n.x + n.w || p.y < n.y || p.y > n.y + n.h) continue;
-    if (n.w * n.h < bestArea) {
-      best = id;
-      bestArea = n.w * n.h;
-    }
-  }
-  return best;
-}
-
-function relayoutGeometry(fit = true): void {
-  if (!state.model || !state.profile) return;
-  if (fit) fitContainers(state.model, state.profile.profile, state.layout.nodes);
-  state.layout.edges = routeEdges(state.model, state.profile.profile, state.layout.nodes, state.layout.edges);
-}
 
 function select(t: Target | undefined): void {
   state.selected = t;
@@ -452,17 +295,10 @@ function select(t: Target | undefined): void {
   drawSoon();
 }
 
+/** Boxes at the start of a node drag or resize. */
 let drag: { ids: string[]; exclude: Set<string>; orig: Map<string, NodeLayout> } | undefined;
+/** The line's layout at the start of a line drag. */
 let edgeDrag: { id: string; orig: EdgeLayout } | undefined;
-
-function setManual(id: string, orig: EdgeLayout, points: LayoutPoint[]): void {
-  const next: EdgeLayout = { ...orig, points, manual: true };
-  delete next.labelPos;
-  const edge = state.model?.edges.get(id);
-  const lp = edge?.label ? edgeLabelPos(points) : undefined;
-  if (lp) next.labelPos = lp;
-  state.layout.edges[id] = next;
-}
 
 function endEdgeDrag(): void {
   edgeDrag = undefined;
@@ -471,14 +307,19 @@ function endEdgeDrag(): void {
   status();
 }
 
+/** The line's layout at drag start (taken on the first move of a line drag). */
+function edgeDragStart(id: string): EdgeLayout | undefined {
+  const e = state.layout.edges[id];
+  if (!e) return undefined;
+  edgeDrag ??= { id, orig: edgeSnapshot(e) };
+  return edgeDrag.orig;
+}
+
 /** Back to automatic routing for the selected line (drops manual points and ports). */
 function resetRoute(): void {
   const sel = state.selected;
-  if (sel?.type !== "edge" || !state.model || !state.profile) return;
-  const e = state.layout.edges[sel.id];
-  if (!e) return;
-  state.layout.edges[sel.id] = { points: e.points };
-  state.layout.edges = routeEdges(state.model, state.profile.profile, state.layout.nodes, state.layout.edges);
+  const s = scene();
+  if (sel?.type !== "edge" || !s || !resetRouteOf(s, sel.id)) return;
   saveLayoutSoon();
   commit();
   draw();
@@ -488,18 +329,16 @@ function resetRoute(): void {
 const canvas = new Canvas($("canvas"), {
   onNodeDown(id) {
     select({ type: "node", id });
-    const ids = subtree(id).filter((i) => state.layout.nodes[i]);
+    const ids = state.model ? subtree(state.model, id).filter((i) => state.layout.nodes[i]) : [];
     drag = { ids, exclude: new Set(ids), orig: new Map(ids.map((i) => [i, { ...state.layout.nodes[i]! }])) };
   },
   onNodeDrag(_id, dx, dy, pointer) {
-    if (!drag) return;
-    for (const i of drag.ids) {
-      const o = drag.orig.get(i)!;
-      state.layout.nodes[i] = { ...o, x: Math.round(o.x + dx), y: Math.round(o.y + dy) };
-    }
+    const s = scene();
+    if (!drag || !s) return;
+    moveNodes(s.layout, drag.orig, dx, dy);
     // Containers keep their size while dragging so a node can be dragged out of one.
-    relayoutGeometry(false);
-    state.dropTarget = containerAt(pointer, drag.exclude);
+    relayout(s, false);
+    state.dropTarget = containerAt(s, pointer, drag.exclude);
     drawSoon();
   },
   onNodeUp(id, moved, pointer) {
@@ -512,93 +351,49 @@ const canvas = new Canvas($("canvas"), {
       drawSoon();
       return;
     }
-    const n = state.layout.nodes[id];
+    const s = scene();
+    if (!s) return;
+    const n = s.layout.nodes[id];
     if (n) n.pinned = true;
-    const target = containerAt(pointer, exclude);
-    const parent = state.model?.nodes.get(id)?.parent;
+    const target = containerAt(s, pointer, exclude);
+    const parent = s.model.nodes.get(id)?.parent;
     // Dropped into another container (or out to the top level): membership is code.
     if (target !== parent && edit((text) => moveNode(text, id, target), "move.spider")) return;
-    relayoutGeometry();
+    relayout(s);
     refreshDiagnostics();
     saveLayoutSoon();
     commit();
     drawSoon();
   },
   onResize(id, dx, dy, done) {
+    const s = scene();
     const n = state.layout.nodes[id];
-    if (!n) return;
+    if (!s || !n) return;
     drag ??= { ids: [id], exclude: new Set([id]), orig: new Map([[id, { ...n }]]) };
-    const o = drag.orig.get(id)!;
-    const w = Math.max(40, Math.round(o.w + dx));
-    const h = Math.max(30, Math.round(o.h + dy));
-    if (isContainer(id)) {
-      // Containers fit their children: the handle sets a minimum size, never below the content.
-      state.layout.nodes[id] = { ...o, minW: w, minH: h, pinned: true };
-    } else {
-      state.layout.nodes[id] = { ...o, w, h, pinned: true };
-    }
-    relayoutGeometry();
+    resizeNode(s, id, drag.orig.get(id)!, dx, dy);
+    relayout(s);
     drawSoon();
     if (done) {
       drag = undefined;
-      const c = state.layout.nodes[id]!;
-      // Dragged back down to (or below) the content: no minimum left to remember.
-      if (isContainer(id) && c.minW !== undefined && c.minH !== undefined) {
-        const fit = { ...c, minW: undefined, minH: undefined };
-        const probe = { ...state.layout.nodes, [id]: fit };
-        if (state.model && state.profile) fitContainers(state.model, state.profile.profile, probe);
-        if (c.minW <= probe[id]!.w) delete c.minW;
-        if (c.minH <= probe[id]!.h) delete c.minH;
-      }
+      dropRedundantMin(s, id);
       refreshDiagnostics();
       saveLayoutSoon();
       commit();
     }
   },
   onSegmentDrag(id, k, pointer, done) {
-    const e = state.layout.edges[id];
-    const edge = state.model?.edges.get(id);
-    const s = edge && state.layout.nodes[edge.source], t = edge && state.layout.nodes[edge.target];
-    if (!e || !s || !t) return;
-    edgeDrag ??= { id, orig: { ...e, points: e.points.map((p) => [p[0], p[1]] as LayoutPoint) } };
-    const orig = edgeDrag.orig;
-    const ax = segmentNormalAxis(orig.points[k]!, orig.points[k + 1]!);
-    const points = moveSegment(orig.points, k, pointer[ax === 0 ? "x" : "y"], s, t);
-    setManual(id, orig, points);
+    const s = scene();
+    const orig = edgeDragStart(id);
+    if (!s || !orig) return;
+    dragSegment(s, id, orig, k, pointer);
     if (done) endEdgeDrag();
     drawSoon();
   },
   onEndDrag(id, end, pointer, done) {
-    const e = state.layout.edges[id];
-    const edge = state.model?.edges.get(id);
-    const nodeId = edge && (end === "source" ? edge.source : edge.target);
-    const box = nodeId ? state.layout.nodes[nodeId] : undefined;
-    if (!e || !edge || !box || !state.model || !state.profile) return;
-    edgeDrag ??= { id, orig: { ...e, points: e.points.map((p) => [p[0], p[1]] as LayoutPoint) } };
-    const orig = edgeDrag.orig;
-    const P = orig.points;
-    const endPt = end === "source" ? P[0]! : P[P.length - 1]!;
-    const current = sideOf(box, endPt);
-    const wanted = sideOf(box, [pointer.x, pointer.y]);
-    if (wanted === current && P.length >= 2) {
-      // Same side: slide the end along it (moves the end segment sideways).
-      const k = end === "source" ? 0 : P.length - 2;
-      const ax = segmentNormalAxis(P[k]!, P[k + 1]!);
-      const s = state.layout.nodes[edge.source]!, t = state.layout.nodes[edge.target]!;
-      setManual(id, orig, moveSegment(P, k, pointer[ax === 0 ? "x" : "y"], s, t));
-    } else {
-      // Another side: keep that side as the line's port and route automatically.
-      const next: EdgeLayout = { points: P };
-      const otherPort = end === "source" ? orig.targetPort : orig.sourcePort;
-      if (end === "source") next.sourcePort = wanted;
-      else next.targetPort = wanted;
-      if (otherPort) {
-        if (end === "source") next.targetPort = otherPort;
-        else next.sourcePort = otherPort;
-      }
-      state.layout.edges[id] = next;
-      state.layout.edges = routeEdges(state.model, state.profile.profile, state.layout.nodes, state.layout.edges);
-    }
+    const s = scene();
+    const orig = edgeDragStart(id);
+    if (!s || !orig) return;
+    dragEnd(s, id, orig, end, pointer);
     if (done) endEdgeDrag();
     drawSoon();
   },
@@ -610,8 +405,8 @@ const canvas = new Canvas($("canvas"), {
   onConnect(from, pointer, over, done) {
     state.connect = done ? undefined : { from, pointer, over };
     if (done && over && over !== from && state.model) {
-      const ordinal = [...state.model.edges.values()].filter((e) => e.source === from && e.target === over).length + 1;
-      if (edit((text) => addEdge(text, from, over), "input.spider.connect")) state.selected = { type: "edge", id: edgeId(from, over, ordinal) };
+      const next = nextEdgeId(state.model, from, over);
+      if (edit((text) => addEdge(text, from, over), "input.spider.connect")) state.selected = { type: "edge", id: next };
     }
     drawSoon();
   },
@@ -620,9 +415,9 @@ const canvas = new Canvas($("canvas"), {
     setTimeout(() => openRename(target), 0);
   },
   onDropKind(kind, p) {
-    const parent = containerAt(p);
-    const def = state.profile?.profile.nodes[kind];
-    const [w, h] = def?.size ?? DEFAULT_NODE_SIZE;
+    const s = scene();
+    if (!s) return;
+    const parent = containerAt(s, p);
     let id: string | undefined;
     const ok = edit((text) => {
       const r = addNode(text, { kind, label: `New ${kind.replace(/^.*\./, "")}`, parent });
@@ -630,7 +425,7 @@ const canvas = new Canvas($("canvas"), {
       return r.edits;
     }, "input.spider.add");
     if (!ok || !id) return;
-    state.layout.nodes[id] = { x: Math.round(p.x - w / 2), y: Math.round(p.y - h / 2), w, h, pinned: true };
+    state.layout.nodes[id] = droppedNodeBox(s.profile, kind, p);
     state.selected = { type: "node", id };
     state.pendingRename = id;
   },
@@ -639,106 +434,64 @@ const canvas = new Canvas($("canvas"), {
   },
 });
 
-// ---- inline label editor ----
+// ---- inline label / id editors ----
+
+/** Screen rect of a node (a container's title bar). */
+function nodeScreenRect(id: string): { x: number; y: number; w: number; h: number } | undefined {
+  const n = state.layout.nodes[id];
+  if (!n || !state.model) return undefined;
+  return canvas.toScreenRect(isContainer(state.model, id) ? { x: n.x, y: n.y, w: n.w, h: 36 } : n);
+}
 
 function openRename(target: Target): void {
   const model = state.model;
   if (!model) return;
-  let current: string | undefined;
   let rect: { x: number; y: number; w: number; h: number } | undefined;
+  let value: string;
   if (target.type === "node") {
-    current = model.nodes.get(target.id)?.label ?? "";
-    const n = state.layout.nodes[target.id];
-    if (n) rect = canvas.toScreenRect(isContainer(target.id) ? { x: n.x, y: n.y, w: n.w, h: 36 } : n);
+    value = model.nodes.get(target.id)?.label ?? "";
+    rect = nodeScreenRect(target.id);
   } else {
-    current = model.edges.get(target.id)?.label ?? "";
+    value = model.edges.get(target.id)?.label ?? "";
     const el = state.layout.edges[target.id];
     const pts = el?.points ?? [];
     const [x, y] = el?.labelPos ?? pts[Math.floor(pts.length / 2)] ?? [0, 0];
     rect = canvas.toScreenRect({ x: x - 70, y: y - 14, w: 140, h: 28 });
   }
   if (!rect) return;
-  document.querySelector(".rename")?.remove();
-  const input = document.createElement("input");
-  input.className = "rename";
-  input.value = current;
-  input.placeholder = target.type === "edge" ? "edge label" : "label";
-  const w = Math.max(rect.w, 140);
-  Object.assign(input.style, { left: `${rect.x + rect.w / 2 - w / 2}px`, top: `${rect.y + rect.h / 2 - 15}px`, width: `${w}px` });
-  $("canvas").appendChild(input);
-  input.focus();
-  input.select();
-  let closed = false;
-  const close = (commit: boolean): void => {
-    if (closed) return;
-    closed = true;
-    input.remove();
-    $("canvas").focus();
-    if (commit && input.value !== current) {
+  openInlineInput($("canvas"), {
+    rect,
+    value,
+    placeholder: target.type === "edge" ? "edge label" : "label",
+    onCommit(label) {
       const t = target.type === "node" ? { node: target.id } : { edge: target.id };
-      edit((text) => setLabel(text, t, input.value), "input.spider.rename");
-    }
-  };
-  input.addEventListener("keydown", (e) => {
-    e.stopPropagation();
-    if (e.key === "Enter") close(true);
-    else if (e.key === "Escape") close(false);
+      edit((text) => setLabel(text, t, label), "input.spider.rename");
+    },
   });
-  input.addEventListener("blur", () => close(true));
-  input.addEventListener("pointerdown", (e) => e.stopPropagation());
 }
 
 /** Inline editor for a node's id: renames it in the code and re-keys its layout entries. */
 function openRenameId(id: string): void {
-  const n = state.layout.nodes[id];
-  if (!n || !state.model?.nodes.has(id)) return;
-  const rect = canvas.toScreenRect(isContainer(id) ? { x: n.x, y: n.y, w: n.w, h: 36 } : n);
-  document.querySelector(".rename")?.remove();
-  const input = document.createElement("input");
-  input.className = "rename mono";
-  input.value = id;
-  input.title = "Node id (letters, digits, _)";
-  const w = Math.max(rect.w, 140);
-  Object.assign(input.style, { left: `${rect.x + rect.w / 2 - w / 2}px`, top: `${rect.y + rect.h / 2 - 15}px`, width: `${w}px` });
-  $("canvas").appendChild(input);
-  input.focus();
-  input.select();
-  const valid = (v: string): boolean => v === id || (isValidId(v) && !state.model?.nodes.has(v));
-  input.addEventListener("input", () => input.classList.toggle("invalid", !valid(input.value)));
-  let closed = false;
-  const close = (commit: boolean): void => {
-    if (closed) return;
-    closed = true;
-    input.remove();
-    $("canvas").focus();
-    const to = input.value;
-    if (!commit || to === id || !valid(to)) return;
-    // Re-key the layout first so the renamed node keeps its place and its lines keep their routes.
-    const nodes: Record<string, NodeLayout> = {};
-    for (const [k, v] of Object.entries(state.layout.nodes)) nodes[k === id ? to : k] = v;
-    const edges: Record<string, EdgeLayout> = {};
-    for (const [k, v] of Object.entries(state.layout.edges)) edges[renameEdgeId(k, id, to)] = v;
-    const before = state.layout;
-    state.layout = { ...state.layout, nodes, edges };
-    if (edit((text) => renameId(text, id, to), "input.spider.rename-id")) state.selected = { type: "node", id: to };
-    else state.layout = before;
-  };
-  input.addEventListener("keydown", (e) => {
-    e.stopPropagation();
-    if (e.key === "Enter") close(true);
-    else if (e.key === "Escape") close(false);
+  const rect = nodeScreenRect(id);
+  if (!rect || !state.model?.nodes.has(id)) return;
+  openInlineInput($("canvas"), {
+    rect,
+    value: id,
+    title: "Node id (letters, digits, _)",
+    mono: true,
+    valid: (v) => v === id || (isValidId(v) && !state.model?.nodes.has(v)),
+    onCommit(to) {
+      // Re-key the layout first so the renamed node keeps its place and its lines keep their routes.
+      const before = state.layout;
+      state.layout = renameInLayout(state.layout, id, to);
+      if (edit((text) => renameId(text, id, to), "input.spider.rename-id")) state.selected = { type: "node", id: to };
+      else state.layout = before;
+    },
   });
-  input.addEventListener("blur", () => close(true));
-  input.addEventListener("pointerdown", (e) => e.stopPropagation());
 }
 
 function unpin(): void {
-  const selNode = state.selected?.type === "node" ? state.selected.id : undefined;
-  const ids = selNode ? [selNode] : Object.keys(state.layout.nodes);
-  for (const id of ids) {
-    const n = state.layout.nodes[id];
-    if (n) delete n.pinned;
-  }
+  unpinNodes(state.layout, state.selected?.type === "node" ? state.selected.id : undefined);
   saveLayoutSoon();
   draw();
   status();
@@ -754,13 +507,13 @@ function deleteSelection(): void {
 
 // ---- boot ----
 
-const doc = (await (await fetch("/api/doc")).json()) as { name: string; text: string; layout: string | null };
+const doc = await fetchDoc();
 $("file").textContent = doc.name;
 document.title = `${doc.name} · spider`;
-state.savedText = doc.text;
+io.savedText = doc.text;
 if (doc.layout) {
   state.layout = parseLayoutFile(doc.layout).layout;
-  state.savedLayout = doc.layout;
+  io.savedLayout = doc.layout;
 }
 
 const code = createCodeEditor($("code"), doc.text, {
@@ -779,7 +532,10 @@ setupZoom(canvas, $("zoom"));
 $("unpin").addEventListener("click", unpin);
 $("reset-route").addEventListener("click", resetRoute);
 /** The diagram as it would be exported (no selection, handles or hit areas). */
-const cleanSvg = (): string | undefined => state.model && state.profile && renderSvg(state.model, state.profile.profile, state.layout);
+const cleanSvg = (): string | undefined => {
+  const s = scene();
+  return s && renderSvg(s.model, s.profile, s.layout);
+};
 const baseName = doc.name.replace(/\.spd$/, "");
 $("export-svg").addEventListener("click", () => {
   const svg = cleanSvg();
@@ -822,20 +578,17 @@ canvasEl.addEventListener("keydown", (e) => {
   else if (e.key === "Escape") select(undefined);
 });
 
-const events = new EventSource("/api/events");
-events.addEventListener("text", (e) => {
-  const { text } = JSON.parse((e as MessageEvent<string>).data) as { text: string };
-  state.savedText = text;
-  code.setText(text);
-  state.commitPending = true;
-  void recompile(text);
-});
-events.addEventListener("layout", (e) => {
-  const { layout } = JSON.parse((e as MessageEvent<string>).data) as { layout: string };
-  state.savedLayout = layout;
-  state.layout = layout ? parseLayoutFile(layout).layout : emptyLayout();
-  state.commitPending = true;
-  void recompile(code.text());
+io.listen({
+  text(text) {
+    code.setText(text);
+    state.commitPending = true;
+    void recompile(text);
+  },
+  layout(layout) {
+    state.layout = layout ? parseLayoutFile(layout).layout : emptyLayout();
+    state.commitPending = true;
+    void recompile(code.text());
+  },
 });
 
 const hint = document.createElement("div");

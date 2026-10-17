@@ -52,8 +52,13 @@ skill for router/render changes, the `browser-test` skill for editor changes.
 
 ## Phase D — Editor layers  (medium–hard)
 
-- [ ] `editor/src/app.ts` (~850 lines) split: pure canvas commands (move, resize, line ends,
-      rename id, reset route…), overlay drawing, server IO, inline inputs, palette; `app.ts`
-      keeps the state, history and wiring
-- [ ] Browser-free tests for the commands and the overlay
-- [ ] Browser check of the whole editor (`browser-test` skill)
+- [x] `editor/src/app.ts` (849 → 602 lines) split: `commands.ts` (pure layout commands:
+      move, resize + min size, segment/end drags, reset route, unpin, id re-key, new node box),
+      `overlay.ts`, `io.ts` (server client, profile cache), `inline-input.ts` (one input for
+      label and id rename, was duplicated), `palette.ts`; `app.ts` keeps state, history, wiring.
+      The editor's pipeline is `engine.analyze` (phase C)
+- [x] Browser-free tests: `tests/commands.test.ts`, `tests/overlay.test.ts` (17 tests)
+- [x] Browser check of the whole editor: 18 steps with real mouse/keyboard events (drag,
+      undo/redo, segment drag, reset route, connect, label + id rename, container resize,
+      palette drop, delete, undo to start, external edit), files checked on disk, no console
+      errors. Run in headless Chrome over CDP because the Chrome extension wasn't connected
