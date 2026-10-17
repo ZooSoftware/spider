@@ -51,6 +51,10 @@ packages/
 
 - `core` has **no DOM, no React, and no knowledge of specific diagram types**.
 - Dependencies point inward: `editor`/`cli` → `render`/`layout`/`profiles` → `core`.
+- Enforced, not just documented: `tests/architecture.test.ts` (allowed package imports,
+  Node APIs only in `cli`, `editor/src/server.ts`, `profiles/src/load.ts`) and the typecheck
+  (`tsconfig.pure.json`: core/layout/profile-schema build without DOM or Node;
+  `tsconfig.browser.json`: the editor's browser code builds without Node).
 
 ## Conventions
 
@@ -65,7 +69,7 @@ packages/
 ```sh
 bun install
 bun test                    # all tests; `bun test packages/core` for one package
-bun run typecheck           # tsc --noEmit over packages/*/src
+bun run typecheck           # tsc: everything, + pure and browser boundary configs
 bun run spider build examples/checkout.spd --png   # → .svg/.png + .layout.json
 bun run spider check <file.spd>                    # diagnostics only, exit 1 on errors
 bun run spider dev examples/checkout.spd           # two-way editor on http://127.0.0.1:4321 (?debug)

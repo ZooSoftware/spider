@@ -27,7 +27,8 @@ let elk: InstanceType<typeof ELK> | undefined;
 function getElk(): InstanceType<typeof ELK> {
   if (elk) return elk;
   const g = globalThis as { self?: unknown };
-  const desc = typeof document === "undefined" ? Object.getOwnPropertyDescriptor(globalThis, "self") : undefined;
+  const inBrowser = (globalThis as { document?: unknown }).document !== undefined;
+  const desc = inBrowser ? undefined : Object.getOwnPropertyDescriptor(globalThis, "self");
   if (desc?.configurable) delete g.self;
   try {
     elk = new ELK();

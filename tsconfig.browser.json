@@ -1,0 +1,6 @@
+{
+  // The editor's browser code: DOM yes, Node/Bun APIs no (file IO belongs to server.ts).
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "lib": ["ES2022", "DOM", "DOM.Iterable"], "types": [] },
+  "include": ["packages/editor/src/app.ts"]
+}

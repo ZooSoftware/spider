@@ -1,0 +1,13 @@
+{
+  // Pure packages: no DOM and no Node/Bun APIs, so they run anywhere (browser, CLI, workers).
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "lib": ["ES2022"], "types": [] },
+  "include": [
+    "packages/core/src/**/*.ts",
+    "packages/profile-schema/src/**/*.ts",
+    "packages/layout/src/**/*.ts",
+    "packages/profiles/src/validate.ts",
+    "packages/profiles/src/cheatsheet.ts",
+    "packages/profiles/src/sanitize.ts"
+  ]
+}

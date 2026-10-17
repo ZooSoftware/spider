@@ -20,10 +20,15 @@ skill for router/render changes, the `browser-test` skill for editor changes.
 
 ## Phase A — Boundaries and docs  (easy)
 
-- [ ] Architecture test (`tests/architecture.test.ts`): allowed imports between packages;
-      `node:*` only in `cli`, `editor/src/server.ts` and `profiles/src/load.ts`; the editor's
-      browser code never reaches a `node:*` import
-- [ ] Docs drift: `CLAUDE.md`/`DESIGN.md` still say React + xyflow and ELK in a Web Worker
+- [x] Architecture test (`tests/architecture.test.ts`): allowed imports between packages,
+      declared in `package.json`, relative imports stay in their package; `node:*` only in
+      `cli`, `editor/src/server.ts` and `profiles/src/load.ts`
+- [x] Runtime boundaries in the typecheck: `tsconfig.pure.json` (core, profile-schema,
+      layout, pure profiles files: no DOM, no Node/Bun) and `tsconfig.browser.json` (editor
+      browser code: no Node/Bun). Found and fixed: `elk-adapter.ts` referenced `document`
+- [x] Docs drift: `CLAUDE.md`/`DESIGN.md` said React + xyflow and ELK in a Web Worker (done in phase 0)
+- Decided against removing `node:fs` from `profiles/load.ts`: the browser never loads
+  profiles (the server does), and the browser typecheck now guarantees it can't by accident.
 
 ## Phase B — Split the router  (easy, pure move)
 
