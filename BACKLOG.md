@@ -12,7 +12,7 @@ when a real diagram shows the problem. Priority: **high / medium / low**.
 
 ---
 
-## B1 — Arrowhead right after a bend (medium)
+## ✅ B1 — Arrowhead right after a bend (medium)
 
 **Problem:** when a line bends close to its target, the bend and the arrowhead land on the
 same spot: the last straight segment is shorter than the arrowhead, so the arrow appears
@@ -40,7 +40,7 @@ edge in the examples and the 100-node test graph; the checkout example looks cle
 
 ---
 
-## B2 — Lines running along container borders (low)
+## ✅ B2 — Lines running along container borders (low)
 
 **Problem:** lines can run exactly on top of a container border, so the line and the
 border overlap and are hard to tell apart.

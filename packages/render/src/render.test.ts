@@ -107,3 +107,10 @@ describe("text scales with node size (B3)", () => {
     expect(contentScale({ w: 210, h: 90 }, [140, 60])).toBe(1.5);
   });
 });
+
+test("roundedPath never rounds into the arrowhead's straight run", () => {
+  // Last segment is 16px: with an end arrow (12px) the last corner radius is capped at 4.
+  const d = roundedPath([[0, 0], [100, 0], [100, 16]], 6, { end: true });
+  expect(d).toContain("L96 0 Q100 0 100 4");
+  expect(roundedPath([[0, 0], [100, 0], [100, 16]], 6)).toContain("L94 0 Q100 0 100 6");
+});

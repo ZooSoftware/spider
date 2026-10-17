@@ -18,6 +18,14 @@ import type { EdgeLayout, NodeLayout, Point } from "./layout-file.ts";
 export const ROUTE_MARGIN = 12;
 /** Length of the straight stub leaving/entering a port. */
 const STUB = 12;
+/** Arrowhead length drawn by the renderer (marker 8 × stroke 1.5). */
+export const ARROW_LENGTH = 12;
+/** Minimum straight run at an end with an arrowhead, so the arrow never sits on a bend. */
+export const ARROW_STUB = ARROW_LENGTH + 12;
+/** Segments closer than this to a container border (and parallel to it) look like the border. */
+export const BORDER_GAP = 10;
+/** Cost of running along a container border, in px of route length. */
+const BORDER_COST = 2 * 40;
 /** Cost of one bend, in px of route length. */
 const BEND = 40;
 /** Distance between nudged parallel segments. */
@@ -49,6 +57,8 @@ interface NodeInfo {
 
 interface End {
   node: NodeInfo;
+  /** Length of the straight run at this end (longer where an arrowhead is drawn). */
+  stub: number;
   sides: Side[];
   /** Endpoint is an ancestor container of the other end: stub points inward. */
   inward: boolean;
@@ -139,6 +149,16 @@ interface Ctx {
   obstacles: Rect[];
   index: ObstacleIndex;
   bounds: Rect;
+  /** Container border lines; routes should cross them, never run along them. */
+  borders: Border[];
+}
+
+interface Border {
+  /** 0: vertical line at x = c; 1: horizontal line at y = c. */
+  ax: 0 | 1;
+  c: number;
+  lo: number;
+  hi: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -163,7 +183,7 @@ export function routeEdges(
     } else if (s === t) {
       loops.push(prev ? { edge: e, node: s, prev } : { edge: e, node: s });
     } else {
-      jobs.push(makeJob(ctx, e, index++, s, t, prev));
+      jobs.push(makeJob(ctx, e, index++, s, t, prev, arrowsOf(profile, e)));
     }
   }
 
@@ -173,6 +193,7 @@ export function routeEdges(
   assignSlots(jobs, routeKey);
   for (const j of jobs) routeJob(ctx, j);
   nudge(jobs);
+  avoidBorders(ctx, jobs);
   removeJogs(jobs);
   for (const j of jobs) done.set(j.edge.id, finish(j.edge, j.pts, j.prev, false));
   const used = new Map<string, number>();
@@ -218,7 +239,42 @@ function buildCtx(model: Model, profile: ResolvedProfile, nodes: Record<string, 
     x2 = Math.max(x2, box.x + box.w); y2 = Math.max(y2, box.y + box.h);
   }
   const bounds = x1 === Infinity ? { x: 0, y: 0, w: 0, h: 0 } : { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
-  return { infos, obstacles, index: new ObstacleIndex(obstacles), bounds };
+  const borders: Border[] = [];
+  for (const n of model.nodes.values()) {
+    const l = nodes[n.id];
+    if (!l || !isContainer(n)) continue;
+    borders.push(
+      { ax: 1, c: l.y, lo: l.x, hi: l.x + l.w },
+      { ax: 1, c: l.y + l.h, lo: l.x, hi: l.x + l.w },
+      { ax: 0, c: l.x, lo: l.y, hi: l.y + l.h },
+      { ax: 0, c: l.x + l.w, lo: l.y, hi: l.y + l.h },
+    );
+  }
+  return { infos, obstacles, index: new ObstacleIndex(obstacles), bounds, borders };
+}
+
+/** Which ends of an edge get an arrowhead (renderer default: end). */
+function arrowsOf(profile: ResolvedProfile, e: ModelEdge): { start: boolean; end: boolean } {
+  const name = e.kind ?? profile.defaultEdge;
+  const arrow = (name ? profile.edges[name]?.arrow : undefined) ?? "end";
+  return { start: arrow === "start" || arrow === "both", end: arrow === "end" || arrow === "both" };
+}
+
+/** Penalty for segments running along (parallel and within BORDER_GAP of) a container border. */
+function borderPenalty(borders: Border[], pts: Point[]): number {
+  let p = 0;
+  for (let i = 0; i + 1 < pts.length; i++) if (alongBorder(borders, pts[i]!, pts[i + 1]!)) p += BORDER_COST;
+  return p;
+}
+
+function alongBorder(borders: Border[], a: Point, b: Point): boolean {
+  const ax: 0 | 1 = a[0] === b[0] ? 0 : 1;
+  const al = 1 - ax;
+  const c = a[ax], lo = Math.min(a[al]!, b[al]!), hi = Math.max(a[al]!, b[al]!);
+  for (const br of borders) {
+    if (br.ax === ax && Math.abs(br.c - c) < BORDER_GAP && Math.min(hi, br.hi) - Math.max(lo, br.lo) > 0) return true;
+  }
+  return false;
 }
 
 function allowedSides(n: NodeInfo, stored: Side | undefined): Side[] {
@@ -227,7 +283,15 @@ function allowedSides(n: NodeInfo, stored: Side | undefined): Side[] {
   return base;
 }
 
-function makeJob(ctx: Ctx, edge: ModelEdge, index: number, s: NodeInfo, t: NodeInfo, prev?: EdgeLayout): Job {
+function makeJob(
+  ctx: Ctx,
+  edge: ModelEdge,
+  index: number,
+  s: NodeInfo,
+  t: NodeInfo,
+  prev: EdgeLayout | undefined,
+  arrows: { start: boolean; end: boolean },
+): Job {
   const excluded = new Set<number>([s.obstacle, t.obstacle]);
   for (const a of [...s.anc, ...t.anc]) {
     const i = ctx.infos.get(a)?.obstacle;
@@ -242,8 +306,8 @@ function makeJob(ctx: Ctx, edge: ModelEdge, index: number, s: NodeInfo, t: NodeI
   const job: Job = {
     edge,
     index,
-    s: { node: s, sides: ss, inward: sIn, side: ss[0]!, pos: [0, 0] },
-    t: { node: t, sides: ts, inward: tIn, side: ts[0]!, pos: [0, 0] },
+    s: { node: s, stub: arrows.start ? ARROW_STUB : STUB, sides: ss, inward: sIn, side: ss[0]!, pos: [0, 0] },
+    t: { node: t, stub: arrows.end ? ARROW_STUB : STUB, sides: ts, inward: tIn, side: ts[0]!, pos: [0, 0] },
     excluded,
     pts: [],
     base: { idx: ctx.index, excluded, margin: ROUTE_MARGIN },
@@ -378,8 +442,12 @@ interface Route {
  * Cheapest collision-free route among straight / L / Z / U shapes between two ports, or null.
  * With `checker` undefined, returns the cheapest shape regardless of obstacles.
  */
-function shapeRoute(p0: Point, d0: Dir, p1: Point, d1: Dir, checker: Checker | undefined, extraCoords: boolean): Route | null {
-  const a = step(p0, d0, STUB), b = step(p1, d1, STUB);
+function shapeRoute(
+  p0: Point, d0: Dir, l0: number,
+  p1: Point, d1: Dir, l1: number,
+  checker: Checker | undefined, extraCoords: boolean, borders: Border[] = [],
+): Route | null {
+  const a = step(p0, d0, l0), b = step(p1, d1, l1);
   const mids: Point[][] = [[], [[b[0], a[1]]], [[a[0], b[1]]]];
   const xs = new Set<number>([Math.round((a[0] + b[0]) / 2), a[0], b[0]]);
   const ys = new Set<number>([Math.round((a[1] + b[1]) / 2), a[1], b[1]]);
@@ -391,16 +459,29 @@ function shapeRoute(p0: Point, d0: Dir, p1: Point, d1: Dir, checker: Checker | u
       xs.add(r.x - 1); xs.add(r.x + r.w + 1);
       ys.add(r.y - 1); ys.add(r.y + r.h + 1);
     }
+    if (extraCoords) {
+      // Lanes just off container borders, so there is an alternative to running along one.
+      for (const br of borders) {
+        if (br.c < (br.ax === 0 ? window.x : window.y) - BORDER_GAP || br.c > (br.ax === 0 ? window.x + window.w : window.y + window.h) + BORDER_GAP) continue;
+        const set = br.ax === 0 ? xs : ys;
+        set.add(br.c - BORDER_GAP - 2); set.add(br.c + BORDER_GAP + 2);
+      }
+    }
   }
   for (const x of xs) mids.push([[x, a[1]], [x, b[1]]]);
   for (const y of ys) mids.push([[a[0], y], [b[0], y]]);
 
   const cands: Route[] = [];
+  // Facing, aligned ports: a single straight segment (also when the gap is shorter than the stubs).
+  const ahead = (p1[0] - p0[0]) * DX[d0] + (p1[1] - p0[1]) * DY[d0];
+  if (d1 === opp(d0) && ahead > 0 && (d0 % 2 === 0 ? p0[1] === p1[1] : p0[0] === p1[0])) {
+    cands.push({ pts: [p0, p1], cost: pathCost([p0, p1]) + borderPenalty(borders, [p0, p1]) });
+  }
   for (const m of mids) {
     const pts = normalize([p0, a, ...m, b, p1]);
     if (!pts) continue;
     if (!pts.every((p, i) => i === 0 || p[0] === pts[i - 1]![0] || p[1] === pts[i - 1]![1])) continue;
-    cands.push({ pts, cost: pathCost(pts) });
+    cands.push({ pts, cost: pathCost(pts) + borderPenalty(borders, pts) });
   }
   // Stable sort keeps generation order on ties -> deterministic.
   cands.sort((u, v) => u.cost - v.cost);
@@ -459,8 +540,8 @@ function sortedCoords(vals: Iterable<number>, lo: number, hi: number): number[] 
   return out;
 }
 
-function astar(p0: Point, d0: Dir, p1: Point, d1: Dir, c: Checker, window: Rect): Point[] | null {
-  const a = step(p0, d0, STUB), b = step(p1, d1, STUB);
+function astar(p0: Point, d0: Dir, l0: number, p1: Point, d1: Dir, l1: number, c: Checker, window: Rect): Point[] | null {
+  const a = step(p0, d0, l0), b = step(p1, d1, l1);
   const arr = opp(d1);
   const wx2 = window.x + window.w, wy2 = window.y + window.h;
   const rects = rectsIn(c, window);
@@ -540,8 +621,8 @@ function chooseSides(ctx: Ctx, j: Job): void {
     for (const ts of j.t.sides) {
       j.s.side = ss; j.t.side = ts;
       const d0 = stubDir(j.s), d1 = stubDir(j.t);
-      const a = step(sidePoint(j.s.node, ss), d0, STUB), b = step(sidePoint(j.t.node, ts), d1, STUB);
-      const lb = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + 2 * STUB + BEND * minBends(a, d0, b, opp(d1)) +
+      const a = step(sidePoint(j.s.node, ss), d0, j.s.stub), b = step(sidePoint(j.t.node, ts), d1, j.t.stub);
+      const lb = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + j.s.stub + j.t.stub + BEND * minBends(a, d0, b, opp(d1)) +
         sidePenalty(j.s, j.t) + sidePenalty(j.t, j.s);
       combos.push({ ss, ts, lb, i: combos.length });
     }
@@ -551,7 +632,7 @@ function chooseSides(ctx: Ctx, j: Job): void {
   for (const c of combos) {
     if (c.lb >= bestCost) break;
     j.s.side = c.ss; j.t.side = c.ts;
-    const r = shapeRoute(sidePoint(j.s.node, c.ss), stubDir(j.s), sidePoint(j.t.node, c.ts), stubDir(j.t), j.checker, false);
+    const r = shapeRoute(sidePoint(j.s.node, c.ss), stubDir(j.s), j.s.stub, sidePoint(j.t.node, c.ts), stubDir(j.t), j.t.stub, j.checker, false, ctx.borders);
     if (!r) continue;
     const cost = r.cost + sidePenalty(j.s, j.t) + sidePenalty(j.t, j.s);
     if (cost < bestCost) { bestCost = cost; best = c; }
@@ -634,17 +715,17 @@ function routeJob(ctx: Ctx, j: Job): void {
   const b = ctx.bounds;
   for (const margin of [ROUTE_MARGIN, 4]) {
     const c = margin === ROUTE_MARGIN ? j.base : checkerFor(ctx, j, margin);
-    const r = shapeRoute(j.s.pos, d0, j.t.pos, d1, c, true);
+    const r = shapeRoute(j.s.pos, d0, j.s.stub, j.t.pos, d1, j.t.stub, c, true, ctx.borders);
     if (r) { j.pts = r.pts; j.checker = c; return; }
     const pad = 4 * STUB + margin;
     const x1 = Math.min(j.s.pos[0], j.t.pos[0]), x2 = Math.max(j.s.pos[0], j.t.pos[0]);
     const y1 = Math.min(j.s.pos[1], j.t.pos[1]), y2 = Math.max(j.s.pos[1], j.t.pos[1]);
     const near: Rect = { x: x1 - 120, y: y1 - 120, w: x2 - x1 + 240, h: y2 - y1 + 240 };
     const full: Rect = { x: b.x - pad, y: b.y - pad, w: b.w + 2 * pad, h: b.h + 2 * pad };
-    const p = astar(j.s.pos, d0, j.t.pos, d1, c, near) ?? astar(j.s.pos, d0, j.t.pos, d1, c, full);
+    const p = astar(j.s.pos, d0, j.s.stub, j.t.pos, d1, j.t.stub, c, near) ?? astar(j.s.pos, d0, j.s.stub, j.t.pos, d1, j.t.stub, c, full);
     if (p) { j.pts = p; j.checker = c; return; }
   }
-  j.pts = shapeRoute(j.s.pos, d0, j.t.pos, d1, undefined, false)?.pts ?? [j.s.pos, j.t.pos];
+  j.pts = shapeRoute(j.s.pos, d0, j.s.stub, j.t.pos, d1, j.t.stub, undefined, false)?.pts ?? [j.s.pos, j.t.pos];
 }
 
 interface Seg {
@@ -745,6 +826,9 @@ function tryMove(s: Seg, nc: number): [Point, Point] | null {
   const ax = s.ax;
   const before = P[s.k - 1]![ax], after = P[s.k + 2]![ax];
   if (Math.sign(nc - before) !== s.sIn || Math.sign(after - nc) !== s.sOut) return null;
+  // Never shorten an end segment below its stub (keeps arrowheads off bends).
+  if (s.k - 1 === 0 && Math.abs(nc - before) < s.job.s.stub) return null;
+  if (s.k + 2 === P.length - 1 && Math.abs(after - nc) < s.job.t.stub) return null;
   const p: Point = [P[s.k]![0], P[s.k]![1]], q: Point = [P[s.k + 1]![0], P[s.k + 1]![1]];
   p[ax] = nc; q[ax] = nc;
   const c = s.job.checker;
@@ -759,8 +843,51 @@ function apply(s: Seg, pq: [Point, Point], nc: number): void {
   s.c = nc;
 }
 
+/** Move interior segments that run along a container border to a lane just off it. */
+function avoidBorders(ctx: Ctx, jobs: Job[]): void {
+  if (ctx.borders.length === 0) return;
+  for (const ax of [0, 1] as const) {
+    for (const s of collectSegs(jobs, ax)) {
+      const near = ctx.borders.filter((b) => b.ax === ax && Math.abs(b.c - s.c) < BORDER_GAP && Math.min(s.hi, b.hi) - Math.max(s.lo, b.lo) > 0);
+      if (near.length === 0) continue;
+      const targets = near.flatMap((b) => [b.c - BORDER_GAP - 2, b.c + BORDER_GAP + 2]).sort((u, v) => Math.abs(u - s.c) - Math.abs(v - s.c));
+      for (const nc of targets) {
+        const moved = tryMove(s, nc);
+        if (!moved || alongBorder(ctx.borders, moved[0], moved[1])) continue;
+        apply(s, moved, nc);
+        break;
+      }
+    }
+  }
+  // End segments can't be nudged: slide the port along its side instead (and the bend with it).
+  for (const j of jobs) {
+    for (const atStart of [true, false]) {
+      const P = atStart ? j.pts : [...j.pts].reverse();
+      if (P.length < 3 || !alongBorder(ctx.borders, P[0]!, P[1]!)) continue;
+      const e = atStart ? j.s : j.t;
+      const al: 0 | 1 = e.side === "left" || e.side === "right" ? 1 : 0;
+      const [lo, hi] = sideRange(e.node, e.side);
+      const near = ctx.borders.filter((b) => b.ax === al && Math.abs(b.c - P[0]![al]) < BORDER_GAP);
+      const targets = near
+        .flatMap((b) => [b.c - BORDER_GAP - 2, b.c + BORDER_GAP + 2])
+        .filter((v) => v > lo + 4 && v < hi - 4)
+        .sort((u, v) => Math.abs(u - P[0]![al]) - Math.abs(v - P[0]![al]));
+      for (const v of targets) {
+        const Q = P.map((p) => [p[0], p[1]] as Point);
+        Q[0]![al] = v;
+        Q[1]![al] = v;
+        const full = atStart ? Q : [...Q].reverse();
+        if (alongBorder(ctx.borders, Q[0]!, Q[1]!) || !pathClear(j.checker, full)) continue;
+        j.pts = full;
+        e.pos = Q[0]!;
+        break;
+      }
+    }
+  }
+}
+
 /** Length below which a bend pair next to a port is a "jog" worth removing. */
-const JOG = 12;
+const JOG = 20;
 
 /**
  * Remove small jogs right after a port (port -> stub -> tiny sidestep -> ...) by sliding the
@@ -796,6 +923,8 @@ function removeJogs(jobs: Job[]): void {
       const rest = P.slice(3);
       const cand = normalize([np0, ...rest]);
       if (!cand) continue;
+      const c1 = cand[1];
+      if (c1 && Math.abs(c1[0] - np0[0]) + Math.abs(c1[1] - np0[1]) < e.stub) continue;
       const full = atStart ? cand : [...cand].reverse();
       if (!pathClear(j.checker, full)) continue;
       j.pts = full;
@@ -812,7 +941,7 @@ const CORNERS: [Side, Side][] = [["top", "right"], ["right", "bottom"], ["bottom
 function loopPoints(box: Rect, corner: Side, i: number): Point[] {
   const { x, y, w, h } = box;
   const q = Math.round(Math.min(w, h) / 4) + i * 6;
-  const L = 18 + i * 10;
+  const L = ARROW_STUB + i * 10;
   const r = x + w, b = y + h;
   switch (corner) {
     case "top": return [[r - q, y], [r - q, y - L], [r + L, y - L], [r + L, y + q], [r, y + q]];

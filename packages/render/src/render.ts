@@ -2,7 +2,7 @@
 // the editor canvas, so elements carry `data-id` attributes for hit testing.
 import type { Model, ModelEdge, ModelNode } from "@spider/core";
 import { DEFAULT_NODE_SIZE, type ResolvedProfile, type Theme } from "@spider/profile-schema";
-import { LABEL_BELOW_SPACE, type LayoutFile, type NodeLayout, type Point } from "@spider/layout";
+import { ARROW_LENGTH, LABEL_BELOW_SPACE, type LayoutFile, type NodeLayout, type Point } from "@spider/layout";
 import { shapeSvg, snapToOutline, type Paint } from "./shapes.ts";
 import { embedIcon, esc, n, textWidth, wrap } from "./svg.ts";
 
@@ -197,7 +197,7 @@ function renderEdge(ctx: Ctx, edge: ModelEdge): string {
   const pts = snapEnds(ctx, edge, ctx.layout.edges[edge.id]!.points);
   const st = edgeStyle(ctx, edge);
   const attrs = [
-    `d="${roundedPath(pts, CORNER)}"`,
+    `d="${roundedPath(pts, CORNER, { start: st.arrow === "start" || st.arrow === "both", end: st.arrow === "end" || st.arrow === "both" })}"`,
     `fill="none"`,
     `stroke="${st.color}"`,
     `stroke-width="1.5"`,
@@ -242,8 +242,11 @@ function renderEdgeLabel(ctx: Ctx, edge: ModelEdge): string {
   );
 }
 
-/** Orthogonal polyline with small rounded corners. */
-export function roundedPath(pts: Point[], radius: number): string {
+/**
+ * Orthogonal polyline with small rounded corners. At an end with an arrowhead the corner
+ * radius never eats into the straight run the arrowhead needs.
+ */
+export function roundedPath(pts: Point[], radius: number, arrows: { start?: boolean; end?: boolean } = {}): string {
   const [first] = pts;
   if (!first) return "";
   let d = `M${n(first[0])} ${n(first[1])}`;
@@ -251,7 +254,9 @@ export function roundedPath(pts: Point[], radius: number): string {
     const [px, py] = pts[i - 1]!;
     const [cx, cy] = pts[i]!;
     const [nx, ny] = pts[i + 1]!;
-    const r = Math.min(radius, Math.hypot(cx - px, cy - py) / 2, Math.hypot(nx - cx, ny - cy) / 2);
+    let r = Math.min(radius, Math.hypot(cx - px, cy - py) / 2, Math.hypot(nx - cx, ny - cy) / 2);
+    if (arrows.start && i === 1) r = Math.min(r, Math.max(0, Math.hypot(cx - px, cy - py) - ARROW_LENGTH));
+    if (arrows.end && i === pts.length - 2) r = Math.min(r, Math.max(0, Math.hypot(nx - cx, ny - cy) - ARROW_LENGTH));
     const ax = cx - Math.sign(cx - px) * r;
     const ay = cy - Math.sign(cy - py) * r;
     const bx = cx + Math.sign(nx - cx) * r;

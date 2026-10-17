@@ -6,7 +6,7 @@ import type { ResolvedProfile } from "@spider/profile-schema";
 import { ancestors, occupiedRect, rectsOverlap, type Rect } from "./geometry.ts";
 import type { EdgeLayout, LayoutFile, NodeLayout, Point } from "./layout-file.ts";
 import { layoutDiagram } from "./layout.ts";
-import { routeEdges } from "./router.ts";
+import { ARROW_STUB, routeEdges } from "./router.ts";
 import { buildModel, buildProfile, segmentCrossesRect, type EdgeSpec } from "./test-utils.ts";
 
 const profile = buildProfile({ db: { size: [110, 70], label: "below" }, queue: { ports: ["left", "right"] } });
@@ -197,5 +197,19 @@ describe("routeEdges", () => {
     console.log(`routeEdges 100 nodes / 150 edges: ${ms.toFixed(2)} ms (avg of ${runs})`);
     expect(ms).toBeLessThan(100);
     expect(routeViolations(model, profile, layout)).toEqual([]);
+  });
+
+  test("B1: arrow ends keep a straight run of at least ARROW_STUB (100-node graph)", async () => {
+    const model = bigModel(100, 150);
+    const layout = await layoutDiagram(model, profile);
+    const short = Object.entries(layout.edges)
+      .filter(([id]) => !id.includes("->") || id.split("->")[0] !== id.split("->")[1]?.split("#")[0])
+      .map(([id, e]) => {
+        const P = e.points;
+        const a = P[P.length - 2]!, b = P[P.length - 1]!;
+        return [id, Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1])] as const;
+      })
+      .filter(([, l]) => l < ARROW_STUB);
+    expect(short).toEqual([]);
   });
 });

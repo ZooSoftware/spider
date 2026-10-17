@@ -1,7 +1,7 @@
 // Public API of @spider/layout: placement (ELK), incremental layout, orthogonal routing, layout IO.
 export * from "./layout-file.ts";
 export { layoutDiagram, type LayoutOptions } from "./layout.ts";
-export { routeEdges, ROUTE_MARGIN } from "./router.ts";
+export { ARROW_LENGTH, ARROW_STUB, BORDER_GAP, routeEdges, ROUTE_MARGIN } from "./router.ts";
 export { reconcileLayout, parseLayoutFile, serializeLayoutFile } from "./layout-io.ts";
 export {
   CONTAINER_PADDING,

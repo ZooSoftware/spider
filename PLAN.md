@@ -173,10 +173,10 @@ Layout + editor.
 
 ### Phase 11 — Router quality: B2 + B1  (medium–hard)
 Router only (`layout/src/router.ts`), verified on the examples and the 100-node graph.
-- [ ] B2: segments never run along a container border (soft obstacle / nudge away ≥ 8–10px)
-- [ ] B1: every edge ends (and starts) with a straight segment ≥ arrowhead + 12px; prefer
+- [x] B2: segments never run along a container border (soft obstacle / nudge away ≥ 8–10px)
+- [x] B1: every edge ends (and starts) with a straight segment ≥ arrowhead + 12px; prefer
       another side over a too-short stub; render clamps corner radius so it never eats it
-- [ ] Router tests for both properties; perf stays < 16ms for 100 nodes/150 edges
+- [x] Router tests for both properties; perf stays < 16ms for 100 nodes/150 edges
 
 ### Phase 12 — Unified undo/redo: B6  (medium–hard)
 Editor architecture.
