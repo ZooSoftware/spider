@@ -1,5 +1,7 @@
 # 002 — Clean architecture: plan
 
+Status: ✅ done (phases 0, A–D).
+
 Goal: keep the code easy to grow after the prototype, without changing behaviour.
 
 Approach: **module + layer**, not full Clean Architecture. Each package is a module; the

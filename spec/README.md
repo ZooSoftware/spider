@@ -21,4 +21,4 @@ spec/
 | Spec | Status |
 |---|---|
 | [001 Prototype](001-prototype/plan.md) | ✅ done, tagged `v0.1.0` |
-| [002 Clean architecture](002-clean-architecture/plan.md) | in progress |
+| [002 Clean architecture](002-clean-architecture/plan.md) | ✅ done |

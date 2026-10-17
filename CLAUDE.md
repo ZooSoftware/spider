@@ -5,8 +5,8 @@ Full design and open questions: `DESIGN.md`. Read it before any architectural ch
 
 ## Status
 
-Prototype complete (`v0.1.0`). All plans live in `spec/` (index: `spec/README.md`); the active
-spec is `spec/002-clean-architecture/plan.md` (tick tasks as they land).
+Prototype complete (`v0.1.0`), clean-architecture pass done (spec 002). All plans live in
+`spec/` (index: `spec/README.md`); new work starts as a new numbered spec (tick tasks as they land).
 User guide: `README.md`. Claude setup (rules, skills, agents, hooks): `.claude/README.md`.
 Review findings to fix later: `spec/backlog.md`.
 Prototype defaults for open design questions: top of `spec/001-prototype/plan.md`.
