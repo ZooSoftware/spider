@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { dedupe, edgeLabelPos, isOrthogonal, moveSegment, sideOf } from "./edge-edit.ts";
-import type { Point } from "./layout-file.ts";
-import { routeEdges } from "./router.ts";
+import { dedupe, edgeLabelPos, isOrthogonal, moveSegment, sideOf } from "../src/edge-edit.ts";
+import type { Point } from "../src/layout-file.ts";
+import { routeEdges } from "../src/router.ts";
 import { buildModel, buildProfile } from "./test-utils.ts";
 
 const src = { x: 0, y: 0, w: 100, h: 60 };

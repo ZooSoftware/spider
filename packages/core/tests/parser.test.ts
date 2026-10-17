@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type EdgeStmt, indentOf, lineBreakOf, lineSpan, type NodeStmt, print } from "./cst.ts";
-import { applyTextEdits } from "./edits.ts";
-import { parse } from "./parser.ts";
-import { parseModel } from "./build.ts";
+import { type EdgeStmt, indentOf, lineBreakOf, lineSpan, type NodeStmt, print } from "../src/cst.ts";
+import { applyTextEdits } from "../src/edits.ts";
+import { parse } from "../src/parser.ts";
+import { parseModel } from "../src/build.ts";
 
 const dir = join(import.meta.dir, "../fixtures");
 const fixtures = readdirSync(dir)

@@ -1,8 +1,8 @@
 // B8: containers always fit their real children; user min size; overlaps are reported, not fixed.
 import { describe, expect, test } from "bun:test";
-import { containerOverlaps, CONTAINER_PADDING, CONTAINER_TITLE_SPACE, fitContainers } from "./geometry.ts";
-import { layoutDiagram } from "./layout.ts";
-import { parseLayoutFile, serializeLayoutFile } from "./layout-io.ts";
+import { containerOverlaps, CONTAINER_PADDING, CONTAINER_TITLE_SPACE, fitContainers } from "../src/geometry.ts";
+import { layoutDiagram } from "../src/layout.ts";
+import { parseLayoutFile, serializeLayoutFile } from "../src/layout-io.ts";
 import { buildModel, buildProfile } from "./test-utils.ts";
 
 const profile = buildProfile({});

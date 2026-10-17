@@ -2,7 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startDevServer } from "./server.ts";
+import { startDevServer } from "../src/server.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "spider-dev-"));
 const file = join(dir, "d.spd");

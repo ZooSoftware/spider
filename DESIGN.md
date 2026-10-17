@@ -223,10 +223,10 @@ comment := '#' to end of line
 |---|---|---|
 | Runtime | TypeScript on Bun | One codebase everywhere; Bun runs the CLI, tests and dev server |
 | Parser | Hand-written recursive descent (or Lezer) | Small grammar, good errors, a syntax tree that keeps formatting for write-back |
-| Layout | ELK.js in a Web Worker | Layered layout, ports, groups, constraints. ~1.5 MB (compiled from Java), runs without a JVM |
+| Layout | ELK.js (placement) + own orthogonal router | ELK places nodes (layered, groups); our synchronous router draws every line so it can re-route live while dragging |
 | Routing | ELK orthogonal routing → libavoid-js (WASM) later | Avoids overlaps |
 | Rendering | Plain SVG from the core | Shared by CLI export and the editor; PNG/PDF via conversion |
-| Canvas | React + xyflow (React Flow) | Drag, select, connect and zoom built in |
+| Canvas | The rendered SVG + a small interaction layer | One renderer for view and export; drag, select, connect and zoom are ours (xyflow was the original plan) |
 | Code editor | CodeMirror 6 | Lighter than Monaco |
 | Schema | JSON Schema / Zod | For profiles |
 | Build | Bun workspaces + Bun bundler | `bun test` for tests |

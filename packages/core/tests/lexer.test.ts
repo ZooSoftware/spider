@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { lex, stringValue } from "./lexer.ts";
+import { lex, stringValue } from "../src/lexer.ts";
 
 const kinds = (src: string) => lex(src).tokens.map((t) => `${t.kind}:${t.text}`);
 

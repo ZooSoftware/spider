@@ -5,10 +5,11 @@ Full design and open questions: `DESIGN.md`. Read it before any architectural ch
 
 ## Status
 
-Prototype complete (phases 0–13). Phases and checklists: `PLAN.md` (tick tasks as they land).
+Prototype complete (`v0.1.0`). All plans live in `spec/` (index: `spec/README.md`); the active
+spec is `spec/002-clean-architecture/plan.md` (tick tasks as they land).
 User guide: `README.md`. Claude setup (rules, skills, agents, hooks): `.claude/README.md`.
-Review findings to fix later: `BACKLOG.md`.
-Prototype defaults for open design questions are listed at the top of `PLAN.md`.
+Review findings to fix later: `spec/backlog.md`.
+Prototype defaults for open design questions: top of `spec/001-prototype/plan.md`.
 
 ## Core invariants (do not break)
 
@@ -31,7 +32,8 @@ Prototype defaults for open design questions are listed at the top of `PLAN.md`.
 
 TypeScript everywhere, **Bun** (workspaces, `bun test`, built-in bundler/dev server;
 never npm/pnpm). Parser: hand-written recursive descent.
-Layout: ELK.js (Web Worker). Render: plain SVG. Editor: React + xyflow + CodeMirror 6.
+Layout: ELK.js for placement + our own orthogonal router. Render: plain SVG.
+Editor: CodeMirror 6 + the rendered SVG with a small interaction layer (no React).
 Profile schema: Zod / JSON Schema. No JVM, no server.
 
 ## Package boundaries
@@ -53,7 +55,7 @@ packages/
 ## Conventions
 
 - Strict TypeScript, ESM only. No `any` in public APIs.
-- Tests next to the code (`*.test.ts`, `bun test`). Parser and write-back changes need
+- Tests in `packages/<pkg>/tests/*.test.ts` (helpers there too), importing `../src/…`. Parser and write-back changes need
   round-trip tests: `parse → edit → print` must keep untouched text byte-identical.
 - Keep the DSL small and AI-friendly. Any grammar change needs a `DESIGN.md` update.
 - User-supplied SVG assets must be sanitized before render.

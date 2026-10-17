@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ARROW_STUB, BORDER_GAP, type Point } from "@spider/layout";
-import { compile } from "./compile.ts";
+import { compile } from "../src/compile.ts";
 
 const EXAMPLES = ["checkout", "platform", "signup-flow", "kubernetes"];
 const EXAMPLES_DIR = join(import.meta.dir, "../../../examples");

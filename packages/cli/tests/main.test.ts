@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const MAIN = join(import.meta.dir, "main.ts");
+const MAIN = join(import.meta.dir, "../src/main.ts");
 const dir = mkdtempSync(join(tmpdir(), "spider-cli-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 

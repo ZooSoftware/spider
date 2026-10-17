@@ -1,4 +1,6 @@
-# Spider — Prototype Plan
+# 001 — Prototype: plan
+
+Status: ✅ done, tagged `v0.1.0`. Its backlog (B1–B8, all fixed) is `backlog.md` next to this file.
 
 Goal: a working prototype you can **test and review**: write a `.spd` file, get an SVG,
 open it in a web editor, drag things around, draw a connection, and see the code update.
@@ -141,14 +143,14 @@ comments and formatting should be intact.
 - [x] Custom profile example: `examples/profiles/acme/k8s` + `examples/kubernetes.spd`
       (found and fixed: namespaced edge kinds `: k8s.mounts` weren't parseable)
 - [x] Rename ID from the canvas (`I` on a node): code + layout re-keyed
-- [x] Notes from review sessions: design rules in BACKLOG.md / CLAUDE.md, DESIGN.md §11
+- [x] Notes from review sessions: design rules in backlog.md / CLAUDE.md, DESIGN.md §11
 
 ---
 
 ## Backlog phases (easy → hard)
 
 Fixes from review, ordered by difficulty. Details and "done when" criteria live in
-`BACKLOG.md` (B1–B8). Phase 7 (polish) was done after these.
+`backlog.md` (B1–B8). Phase 7 (polish) was done after these.
 
 ### Phase 8 — Editor quick wins: B5 + B7  (easy)
 Pure editor UI, no changes to core/layout/render.
@@ -168,7 +170,7 @@ Layout + editor.
 - [x] Containers always fit their children exactly (drop "pinned only grows")
 - [x] Container resize handle sets a *minimum* size (never smaller than content)
 - [x] A container overlapping a node that is not inside it: warning outline in the editor +
-      `layout/overlaps-container` warning (never auto-moved, see BACKLOG design rules)
+      `layout/overlaps-container` warning (never auto-moved, see backlog.md design rules)
 - [x] Layout tests: container (pinned or not) shrinks back when children move closer; min size
       respected but never below content; overlaps reported
 

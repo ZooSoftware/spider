@@ -1,7 +1,7 @@
 // Layout IO tests: reconcile, tolerant parse, stable serialization.
 import { describe, expect, test } from "bun:test";
-import type { LayoutFile } from "./layout-file.ts";
-import { parseLayoutFile, reconcileLayout, serializeLayoutFile } from "./layout-io.ts";
+import type { LayoutFile } from "../src/layout-file.ts";
+import { parseLayoutFile, reconcileLayout, serializeLayoutFile } from "../src/layout-io.ts";
 import { buildModel } from "./test-utils.ts";
 
 const model = buildModel(["a", "b", "c"], [["a", "b"], ["b", "c"]]);

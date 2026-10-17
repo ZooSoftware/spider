@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { ProfileDef } from "./index.ts";
+import { ProfileDef } from "../src/index.ts";
 
 test("minimal profile gets defaults", () => {
   const p = ProfileDef.parse({ name: "base/architecture" });

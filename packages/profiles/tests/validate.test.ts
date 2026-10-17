@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { ResolvedProfile } from "@spider/profile-schema";
-import { emptyProfile, loadProfiles } from "./load.ts";
+import { emptyProfile, loadProfiles } from "../src/load.ts";
 import { makeModel, use } from "./test-helpers.ts";
-import { validate } from "./validate.ts";
+import { validate } from "../src/validate.ts";
 
 const FIX = join(import.meta.dir, "..", "fixtures");
 let arch: ResolvedProfile;

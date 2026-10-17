@@ -23,4 +23,4 @@ description: Create a new diagram profile (node kinds, edge kinds, rules, icons)
    ```
    then the `visual-check` skill on the example.
 7. If it is an example worth keeping, add it to `EXAMPLES` in
-   `packages/render/src/quality.test.ts` (with `searchPaths` if it uses a user profile).
+   `packages/render/tests/quality.test.ts` (with `searchPaths` if it uses a user profile).

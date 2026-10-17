@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { applyTextEdits } from "./edits.ts";
-import { parseModel } from "./build.ts";
-import { addEdge, addNode, deleteElements, moveNode, quote, renameEdgeId, renameId, setLabel } from "./writeback.ts";
-import type { TextEdit } from "./edits.ts";
+import { applyTextEdits } from "../src/edits.ts";
+import { parseModel } from "../src/build.ts";
+import { addEdge, addNode, deleteElements, moveNode, quote, renameEdgeId, renameId, setLabel } from "../src/writeback.ts";
+import type { TextEdit } from "../src/edits.ts";
 
 const SRC = `use base/architecture
 

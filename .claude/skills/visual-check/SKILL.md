@@ -25,4 +25,4 @@ borders, cramped labels, odd placement).
 5. For layout stability: append a node + edge to a copy, rebuild without `--reset`, and
    confirm existing node x/y in the `.layout.json` did not change.
 6. Report what you saw (with the PNG paths). New problems that are out of scope go to
-   `BACKLOG.md` only if the user agrees.
+   `spec/backlog.md` only if the user agrees.

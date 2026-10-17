@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { History } from "./history.ts";
+import { History } from "../src/history.ts";
 
 interface S {
   text: string;

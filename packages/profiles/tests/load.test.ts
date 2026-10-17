@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { loadProfiles, versionMatches } from "./load.ts";
+import { loadProfiles, versionMatches } from "../src/load.ts";
 import { use } from "./test-helpers.ts";
 
 const FIX = join(import.meta.dir, "..", "fixtures");

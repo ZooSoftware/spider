@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseModel } from "./build.ts";
+import { parseModel } from "../src/build.ts";
 
 const fixture = (f: string) => readFileSync(join(import.meta.dir, "../fixtures", f), "utf8");
 const slice = (src: string, s: { start: number; end: number } | undefined) => (s ? src.slice(s.start, s.end) : "");

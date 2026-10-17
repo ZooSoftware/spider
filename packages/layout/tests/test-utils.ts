@@ -2,8 +2,8 @@
 // (the parser and profile loader live in other packages). Not exported from index.ts.
 import type { Model, ModelEdge, ModelNode } from "@spider/core";
 import type { LayoutDefaults, ResolvedNodeKind, ResolvedProfile } from "@spider/profile-schema";
-import type { Rect } from "./geometry.ts";
-import type { LayoutFile, Point } from "./layout-file.ts";
+import type { Rect } from "../src/geometry.ts";
+import type { LayoutFile, Point } from "../src/layout-file.ts";
 
 export interface NodeSpec {
   id: string;

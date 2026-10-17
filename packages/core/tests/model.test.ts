@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { edgeId } from "./model.ts";
+import { edgeId } from "../src/model.ts";
 
 test("edgeId numbers duplicate edges from #2", () => {
   expect(edgeId("a", "b", 1)).toBe("a->b");

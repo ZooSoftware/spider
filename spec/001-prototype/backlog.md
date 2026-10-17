@@ -1,4 +1,4 @@
-# Backlog
+# 001 — Prototype: backlog (closed)
 
 Issues found during review that are not part of the current phase. Add items here only
 when a real diagram shows the problem. Priority: **high / medium / low**.

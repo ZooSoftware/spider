@@ -3,10 +3,10 @@
 import { describe, expect, test } from "bun:test";
 import type { Model } from "@spider/core";
 import type { ResolvedProfile } from "@spider/profile-schema";
-import { ancestors, occupiedRect, rectsOverlap, type Rect } from "./geometry.ts";
-import type { EdgeLayout, LayoutFile, NodeLayout, Point } from "./layout-file.ts";
-import { layoutDiagram } from "./layout.ts";
-import { ARROW_STUB, routeEdges } from "./router.ts";
+import { ancestors, occupiedRect, rectsOverlap, type Rect } from "../src/geometry.ts";
+import type { EdgeLayout, LayoutFile, NodeLayout, Point } from "../src/layout-file.ts";
+import { layoutDiagram } from "../src/layout.ts";
+import { ARROW_STUB, routeEdges } from "../src/router.ts";
 import { buildModel, buildProfile, segmentCrossesRect, type EdgeSpec } from "./test-utils.ts";
 
 const profile = buildProfile({ db: { size: [110, 70], label: "below" }, queue: { ports: ["left", "right"] } });

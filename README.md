@@ -105,5 +105,4 @@ to get a cheat sheet you can give to an AI so it writes valid diagrams for your 
 
 ## Project docs
 
-`DESIGN.md` (design and decisions) · `PLAN.md` (phases) · `BACKLOG.md` (review findings,
-design rules) · `CLAUDE.md` (notes for AI assistants working on the code).
+`DESIGN.md` (design and decisions) · `spec/` (plans per spec, backlog) · `CLAUDE.md` (notes for AI assistants working on the code).

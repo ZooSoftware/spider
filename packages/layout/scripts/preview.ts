@@ -2,7 +2,7 @@
 // then add two nodes incrementally, and write crude SVGs (+ PNGs if ImageMagick/rsvg exist).
 // Usage: bun packages/layout/scripts/preview.ts [outDir]
 import { layoutDiagram, routeEdges } from "../src/index.ts";
-import { buildModel, buildProfile, debugSvg, type EdgeSpec, type NodeSpec } from "../src/test-utils.ts";
+import { buildModel, buildProfile, debugSvg, type EdgeSpec, type NodeSpec } from "../tests/test-utils.ts";
 
 const outDir = process.argv[2] ?? "/tmp/claude-1000/-mnt-data-personal-my-tool-spider/faa43d83-0d8c-4f09-8a10-b89affddbbfb/scratchpad";
 

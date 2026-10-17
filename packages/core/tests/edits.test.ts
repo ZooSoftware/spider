@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { applyTextEdits } from "./edits.ts";
+import { applyTextEdits } from "../src/edits.ts";
 
 test("applies non-overlapping edits against original offsets, in any order", () => {
   const text = "hello world";

@@ -1,8 +1,8 @@
 // layoutDiagram tests: full layout sanity, containers, incremental stability, pinning, orphans.
 import { describe, expect, test } from "bun:test";
-import { ancestors, CONTAINER_PADDING, occupiedRect, rectsOverlap } from "./geometry.ts";
-import type { LayoutFile } from "./layout-file.ts";
-import { layoutDiagram } from "./layout.ts";
+import { ancestors, CONTAINER_PADDING, occupiedRect, rectsOverlap } from "../src/geometry.ts";
+import type { LayoutFile } from "../src/layout-file.ts";
+import { layoutDiagram } from "../src/layout.ts";
 import { buildModel, buildProfile, type EdgeSpec, type NodeSpec } from "./test-utils.ts";
 import type { Model } from "@spider/core";
 import type { ResolvedProfile } from "@spider/profile-schema";

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { profileCheatSheet } from "./cheatsheet.ts";
-import { emptyProfile, loadProfiles } from "./load.ts";
+import { profileCheatSheet } from "../src/cheatsheet.ts";
+import { emptyProfile, loadProfiles } from "../src/load.ts";
 import { use } from "./test-helpers.ts";
 
 test("architecture cheat sheet lists kinds, edges, rules and an example", async () => {

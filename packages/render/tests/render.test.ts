@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { renderSvg, roundedPath, compile } from "./index.ts";
-import { contentScale } from "./render.ts";
-import { snapToOutline } from "./shapes.ts";
-import { wrap } from "./svg.ts";
+import { renderSvg, roundedPath, compile } from "../src/index.ts";
+import { contentScale } from "../src/render.ts";
+import { snapToOutline } from "../src/shapes.ts";
+import { wrap } from "../src/svg.ts";
 
 const SRC = `use base/architecture
 zone vpc "VPC <prod>" {

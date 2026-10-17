@@ -16,4 +16,4 @@
 Ideas not set up (yet):
 - PostToolUse typecheck after every edit: skipped, too noisy while a change spans files.
 - An MCP server exposing `check`/`build`/`profile-doc` so other AI tools can draw diagrams.
-- A `review-session` skill to turn a user's review notes into BACKLOG.md items.
+- A `review-session` skill to turn a user's review notes into `spec/backlog.md` items.
