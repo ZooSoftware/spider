@@ -82,7 +82,7 @@ resizing in the editor visibly scales the text.
 
 ---
 
-## B4 — Move lines, not only nodes (high)
+## ✅ B4 — Move lines, not only nodes (high)
 
 **Problem:** only nodes can be moved. When lines overlap or take a bad path, the user has
 no way to fix a single line; they can only move nodes around it.

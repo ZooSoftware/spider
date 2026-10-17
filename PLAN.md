@@ -188,11 +188,11 @@ Editor architecture.
 
 ### Phase 13 — Move lines: B4  (hard)
 Needs Phase 11 (router handles manual edges cleanly) and Phase 12 (line edits are undoable).
-- [ ] Drag a line segment perpendicular to re-route; neighbours adjust to stay orthogonal
-- [ ] Drag a line end along a node side to change its port
-- [ ] Stored as `manual` points / ports in the layout file; moving a connected node keeps
+- [x] Drag a line segment perpendicular to re-route; neighbours adjust to stay orthogonal
+- [x] Drag a line end along a node side to change its port
+- [x] Stored as `manual` points / ports in the layout file; moving a connected node keeps
       the manual route orthogonal; manual lines get a marker
-- [ ] "Reset route" per line; tests for persistence across reload/rebuild
+- [x] "Reset route" per line; tests for persistence across reload/rebuild
 
 ## Out of the prototype
 

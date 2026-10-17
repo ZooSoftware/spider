@@ -22,14 +22,20 @@ import { validate } from "@spider/profiles/validate";
 import {
   containerOverlapDiagnostics,
   containerOverlaps,
+  edgeLabelPos,
   emptyLayout,
+  moveSegment,
+  segmentNormalAxis,
+  sideOf,
   fitContainers,
   layoutDiagram,
   parseLayoutFile,
   routeEdges,
   serializeLayoutFile,
+  type EdgeLayout,
   type LayoutFile,
   type NodeLayout,
+  type Point as LayoutPoint,
 } from "@spider/layout";
 import { renderSvg } from "@spider/render/render";
 import { Canvas, PALETTE_MIME, type Point, type Target } from "./canvas.ts";
@@ -83,6 +89,8 @@ interface Snapshot {
 
 const sameContent = (a: Snapshot, b: Snapshot): boolean => a.text === b.text && a.layout === b.layout;
 const history = new History<Snapshot>(sameContent);
+// `?debug` exposes internals for troubleshooting from the browser console.
+if (new URLSearchParams(location.search).has("debug")) Object.assign(globalThis, { __spider: { history, state } });
 
 function snapshot(): Snapshot {
   return { text: code.text(), layout: serializeLayoutFile(state.layout, state.model), selected: state.selected };
@@ -309,9 +317,29 @@ function overlay(): string {
   const drop = state.dropTarget ? nodes[state.dropTarget] : undefined;
   if (drop) parts.push(box(drop, 3, "spd-drop"));
   const sel = state.selected;
+  // Hand-routed lines get a small marker on their first bend (or middle).
+  for (const [id, e] of Object.entries(state.layout.edges)) {
+    if (!e.manual || id === sel?.id) continue;
+    const m = e.points[1] && e.points.length > 2 ? e.points[1] : edgeLabelPos(e.points);
+    if (m) parts.push(`<rect class="spd-manual" x="${m[0] - 3}" y="${m[1] - 3}" width="6" height="6" transform="rotate(45 ${m[0]} ${m[1]})"><title>manual route (R to reset)</title></rect>`);
+  }
   if (sel?.type === "edge") {
     const pts = state.layout.edges[sel.id]?.points ?? [];
-    if (pts.length) parts.push(`<polyline class="spd-sel-edge" points="${pts.map((p) => p.join(",")).join(" ")}"/>`);
+    if (pts.length) {
+      parts.push(`<polyline class="spd-sel-edge" points="${pts.map((p) => p.join(",")).join(" ")}"/>`);
+      // A handle in the middle of each segment: drag sideways to move it.
+      for (let k = 0; k + 1 < pts.length; k++) {
+        const [a, b] = [pts[k]!, pts[k + 1]!];
+        const cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2;
+        const vertical = segmentNormalAxis(a, b) === 0;
+        const w = vertical ? 6 : 14, h = vertical ? 14 : 6;
+        parts.push(`<rect class="spd-seg ${vertical ? "v" : "h"}" data-id="${sel.id}" data-k="${k}" x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="2"/>`);
+      }
+      // Handles on both ends: drag along the side, or onto another side of the node.
+      for (const [end, p] of [["source", pts[0]!], ["target", pts[pts.length - 1]!]] as const) {
+        parts.push(`<circle class="spd-end" data-id="${sel.id}" data-end="${end}" cx="${p[0]}" cy="${p[1]}" r="5"/>`);
+      }
+    }
   } else if (sel?.type === "node" && nodes[sel.id]) {
     const n = nodes[sel.id]!;
     parts.push(box(n, 4, "spd-sel"));
@@ -343,6 +371,10 @@ function status(): void {
   const anyPinned = Object.values(state.layout.nodes).some((n) => n.pinned);
   unpin.textContent = selNode ? "Unpin" : "Unpin all";
   unpin.disabled = selNode ? !state.layout.nodes[selNode]?.pinned : !anyPinned;
+  const selEdge = state.selected?.type === "edge" ? state.layout.edges[state.selected.id] : undefined;
+  const reset = $<HTMLButtonElement>("reset-route");
+  reset.hidden = !selEdge;
+  reset.disabled = !(selEdge?.manual || selEdge?.sourcePort || selEdge?.targetPort);
 }
 
 // ---- palette ----
@@ -413,6 +445,37 @@ function select(t: Target | undefined): void {
 }
 
 let drag: { ids: string[]; exclude: Set<string>; orig: Map<string, NodeLayout> } | undefined;
+let edgeDrag: { id: string; orig: EdgeLayout } | undefined;
+
+function setManual(id: string, orig: EdgeLayout, points: LayoutPoint[]): void {
+  const next: EdgeLayout = { ...orig, points, manual: true };
+  delete next.labelPos;
+  const edge = state.model?.edges.get(id);
+  const lp = edge?.label ? edgeLabelPos(points) : undefined;
+  if (lp) next.labelPos = lp;
+  state.layout.edges[id] = next;
+}
+
+function endEdgeDrag(): void {
+  edgeDrag = undefined;
+  saveLayoutSoon();
+  commit();
+  status();
+}
+
+/** Back to automatic routing for the selected line (drops manual points and ports). */
+function resetRoute(): void {
+  const sel = state.selected;
+  if (sel?.type !== "edge" || !state.model || !state.profile) return;
+  const e = state.layout.edges[sel.id];
+  if (!e) return;
+  state.layout.edges[sel.id] = { points: e.points };
+  state.layout.edges = routeEdges(state.model, state.profile.profile, state.layout.nodes, state.layout.edges);
+  saveLayoutSoon();
+  commit();
+  draw();
+  status();
+}
 
 const canvas = new Canvas($("canvas"), {
   onNodeDown(id) {
@@ -483,6 +546,53 @@ const canvas = new Canvas($("canvas"), {
       saveLayoutSoon();
       commit();
     }
+  },
+  onSegmentDrag(id, k, pointer, done) {
+    const e = state.layout.edges[id];
+    const edge = state.model?.edges.get(id);
+    const s = edge && state.layout.nodes[edge.source], t = edge && state.layout.nodes[edge.target];
+    if (!e || !s || !t) return;
+    edgeDrag ??= { id, orig: { ...e, points: e.points.map((p) => [p[0], p[1]] as LayoutPoint) } };
+    const orig = edgeDrag.orig;
+    const ax = segmentNormalAxis(orig.points[k]!, orig.points[k + 1]!);
+    const points = moveSegment(orig.points, k, pointer[ax === 0 ? "x" : "y"], s, t);
+    setManual(id, orig, points);
+    if (done) endEdgeDrag();
+    drawSoon();
+  },
+  onEndDrag(id, end, pointer, done) {
+    const e = state.layout.edges[id];
+    const edge = state.model?.edges.get(id);
+    const nodeId = edge && (end === "source" ? edge.source : edge.target);
+    const box = nodeId ? state.layout.nodes[nodeId] : undefined;
+    if (!e || !edge || !box || !state.model || !state.profile) return;
+    edgeDrag ??= { id, orig: { ...e, points: e.points.map((p) => [p[0], p[1]] as LayoutPoint) } };
+    const orig = edgeDrag.orig;
+    const P = orig.points;
+    const endPt = end === "source" ? P[0]! : P[P.length - 1]!;
+    const current = sideOf(box, endPt);
+    const wanted = sideOf(box, [pointer.x, pointer.y]);
+    if (wanted === current && P.length >= 2) {
+      // Same side: slide the end along it (moves the end segment sideways).
+      const k = end === "source" ? 0 : P.length - 2;
+      const ax = segmentNormalAxis(P[k]!, P[k + 1]!);
+      const s = state.layout.nodes[edge.source]!, t = state.layout.nodes[edge.target]!;
+      setManual(id, orig, moveSegment(P, k, pointer[ax === 0 ? "x" : "y"], s, t));
+    } else {
+      // Another side: keep that side as the line's port and route automatically.
+      const next: EdgeLayout = { points: P };
+      const otherPort = end === "source" ? orig.targetPort : orig.sourcePort;
+      if (end === "source") next.sourcePort = wanted;
+      else next.targetPort = wanted;
+      if (otherPort) {
+        if (end === "source") next.targetPort = otherPort;
+        else next.sourcePort = otherPort;
+      }
+      state.layout.edges[id] = next;
+      state.layout.edges = routeEdges(state.model, state.profile.profile, state.layout.nodes, state.layout.edges);
+    }
+    if (done) endEdgeDrag();
+    drawSoon();
   },
   onEdgeDown(id) {
     select({ type: "edge", id });
@@ -615,6 +725,7 @@ const code = createCodeEditor($("code"), doc.text, {
 setupSplit(document.querySelector<HTMLElement>(".split")!, $("divider"));
 setupZoom(canvas, $("zoom"));
 $("unpin").addEventListener("click", unpin);
+$("reset-route").addEventListener("click", resetRoute);
 $("reset").addEventListener("click", () => {
   state.commitPending = true;
   void recompile(code.text(), { reset: "unpinned" });
@@ -640,6 +751,7 @@ canvasEl.addEventListener("keydown", (e) => {
   else if (e.key === "f") canvas.fit();
   else if (!mod && zoomKey(canvas, e.key)) e.preventDefault();
   else if (e.key === "u") unpin();
+  else if (e.key === "r") resetRoute();
   else if (e.key === "Escape") select(undefined);
 });
 
@@ -662,7 +774,7 @@ events.addEventListener("layout", (e) => {
 const hint = document.createElement("div");
 hint.className = "hint";
 hint.textContent =
-  "drag: move/pin · drop on a box: move inside · ⊕ handle: connect · double-click/F2: rename · Del: delete · Ctrl+Z: undo · +/−/0: zoom · F: fit";
+  "drag: move/pin · drop on a box: move inside · ⊕ handle: connect · line: drag its handles · R: reset route · double-click/F2: rename · Del: delete · Ctrl+Z: undo · +/−/0: zoom · F: fit";
 canvasEl.appendChild(hint);
 
 await recompile(doc.text);

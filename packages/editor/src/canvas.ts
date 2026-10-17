@@ -17,6 +17,10 @@ export interface CanvasHandlers {
   /** Dragging from a node's connect handle; `over` is the node under the pointer. */
   onConnect(from: string, pointer: Point, over: string | undefined, done: boolean): void;
   onDoubleClick(target: Target): void;
+  /** Dragging segment `k` of a selected line (sideways). */
+  onSegmentDrag(edge: string, k: number, pointer: Point, done: boolean): void;
+  /** Dragging one end of a selected line. */
+  onEndDrag(edge: string, end: "source" | "target", pointer: Point, done: boolean): void;
   /** A palette kind dropped on the canvas. */
   onDropKind(kind: string, pointer: Point): void;
   onBackground(): void;
@@ -175,6 +179,8 @@ export class Canvas {
     if (e.button !== 0 && e.button !== 1) return;
     const el = e.target instanceof Element ? e.target : null;
     const handle = el?.closest<SVGElement>(".spd-handle");
+    const seg = el?.closest<SVGElement>(".spd-seg");
+    const endHandle = el?.closest<SVGElement>(".spd-end");
     const connect = el?.closest<SVGElement>(".spd-connect");
     const target = this.targetAt(e.target);
     if (e.button === 0 && target) {
@@ -197,7 +203,19 @@ export class Canvas {
     let move: (ev: PointerEvent) => void;
     let up: (ev: PointerEvent) => void;
 
-    if (e.button === 0 && connect?.dataset.id) {
+    if (e.button === 0 && seg?.dataset.id && seg.dataset.k) {
+      const id = seg.dataset.id;
+      const k = Number(seg.dataset.k);
+      const at = (ev: PointerEvent, done: boolean): void => this.handlers.onSegmentDrag(id, k, this.toDiagram(ev.clientX, ev.clientY), done);
+      move = (ev) => at(ev, false);
+      up = (ev) => at(ev, true);
+    } else if (e.button === 0 && endHandle?.dataset.id && endHandle.dataset.end) {
+      const id = endHandle.dataset.id;
+      const which = endHandle.dataset.end === "source" ? "source" : "target";
+      const at = (ev: PointerEvent, done: boolean): void => this.handlers.onEndDrag(id, which, this.toDiagram(ev.clientX, ev.clientY), done);
+      move = (ev) => at(ev, false);
+      up = (ev) => at(ev, true);
+    } else if (e.button === 0 && connect?.dataset.id) {
       const from = connect.dataset.id;
       const at = (ev: PointerEvent, done: boolean): void =>
         this.handlers.onConnect(from, this.toDiagram(ev.clientX, ev.clientY), this.nodeUnder(ev.clientX, ev.clientY), done);

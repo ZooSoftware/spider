@@ -93,3 +93,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 .zoom .pct { min-width: 54px; font-variant-numeric: tabular-nums; }
 .zoom input[type="range"] { width: 120px; accent-color: var(--accent); }
 .canvas .spd-warn { fill: none; stroke: var(--warning); stroke-width: 2; stroke-dasharray: 6 3; pointer-events: none; }
+.canvas .spd-seg { fill: #fff; stroke: var(--accent); stroke-width: 1.5; }
+.canvas .spd-seg.h { cursor: ns-resize; }
+.canvas .spd-seg.v { cursor: ew-resize; }
+.canvas .spd-end { fill: var(--accent); stroke: #fff; stroke-width: 1.5; cursor: move; }
+.canvas .spd-manual { fill: var(--accent); pointer-events: auto; }

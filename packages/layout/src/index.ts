@@ -16,3 +16,4 @@ export {
   nodeSize,
   type Rect,
 } from "./geometry.ts";
+export { dedupe, edgeLabelPos, isOrthogonal, moveSegment, segmentNormalAxis, sideOf } from "./edge-edit.ts";
