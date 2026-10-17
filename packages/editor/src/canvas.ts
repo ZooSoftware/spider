@@ -32,14 +32,27 @@ interface Box {
 const DRAG_THRESHOLD = 3;
 export const PALETTE_MIME = "application/x-spider-kind";
 
+/** Camera: diagram point at the center of the stage, and pixels per diagram unit. */
+interface Camera {
+  cx: number;
+  cy: number;
+  zoom: number;
+}
+
+export const MIN_ZOOM = 0.1;
+export const MAX_ZOOM = 4;
+const clampZoom = (z: number): number => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+
 export class Canvas {
-  private camera: Box | undefined;
+  private camera: Camera | undefined;
   private content: Box = { x: 0, y: 0, w: 100, h: 100 };
   private svg: SVGSVGElement | undefined;
   private readonly stage: HTMLElement;
   /** Last primary press, for double-click detection (the SVG is re-rendered between clicks,
    *  so the native dblclick event, which needs the same element twice, never fires). */
   private lastPress: { key: string; time: number; x: number; y: number } | undefined;
+  /** Called whenever the zoom level changes (for the zoom control). */
+  onZoom: (zoom: number) => void = () => {};
 
   constructor(
     private readonly el: HTMLElement,
@@ -62,6 +75,8 @@ export class Canvas {
       e.preventDefault();
       handlers.onDropKind(kind, this.toDiagram(e.clientX, e.clientY));
     });
+    // Panel resizes change the stage size; keep the same center and zoom.
+    new ResizeObserver(() => this.apply()).observe(this.stage);
   }
 
   show(svgMarkup: string): void {
@@ -76,16 +91,42 @@ export class Canvas {
     else this.apply();
   }
 
+  get zoom(): number {
+    return this.camera?.zoom ?? 1;
+  }
+
   fit(): void {
     const pad = 24;
     const c = this.content;
-    this.camera = { x: c.x - pad, y: c.y - pad, w: c.w + 2 * pad, h: c.h + 2 * pad };
+    const { w, h } = this.stageSize();
+    const zoom = clampZoom(Math.min(w / (c.w + 2 * pad), h / (c.h + 2 * pad)));
+    this.camera = { cx: c.x + c.w / 2, cy: c.y + c.h / 2, zoom };
     this.apply();
+  }
+
+  /** Set the zoom level, keeping the diagram point under `anchor` (default: center) in place. */
+  setZoom(zoom: number, anchor?: Point): void {
+    const c = this.camera;
+    if (!c) return;
+    const z = clampZoom(zoom);
+    const a = anchor ?? { x: c.cx, y: c.cy };
+    const k = c.zoom / z;
+    this.camera = { cx: a.x - (a.x - c.cx) * k, cy: a.y - (a.y - c.cy) * k, zoom: z };
+    this.apply();
+  }
+
+  private stageSize(): { w: number; h: number } {
+    return { w: Math.max(1, this.stage.clientWidth), h: Math.max(1, this.stage.clientHeight) };
   }
 
   private apply(): void {
     const c = this.camera;
-    if (this.svg && c) this.svg.setAttribute("viewBox", `${c.x} ${c.y} ${c.w} ${c.h}`);
+    if (!this.svg || !c) return;
+    const { w, h } = this.stageSize();
+    const vw = w / c.zoom;
+    const vh = h / c.zoom;
+    this.svg.setAttribute("viewBox", `${c.cx - vw / 2} ${c.cy - vh / 2} ${vw} ${vh}`);
+    this.onZoom(c.zoom);
   }
 
   /** Screen → diagram coordinates. */
@@ -124,14 +165,10 @@ export class Canvas {
 
   private wheel(e: WheelEvent): void {
     e.preventDefault();
-    const c = this.camera;
-    if (!c) return;
-    const p = this.toDiagram(e.clientX, e.clientY);
-    const factor = Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
-    const w = Math.min(Math.max(c.w * factor, 50), 50000);
-    const k = w / c.w;
-    this.camera = { x: p.x - (p.x - c.x) * k, y: p.y - (p.y - c.y) * k, w, h: c.h * k };
-    this.apply();
+    if (!this.camera) return;
+    // Gentle steps: ~10% per mouse-wheel notch, smoother for trackpad pinch (ctrl+wheel).
+    const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.006 : 0.001));
+    this.setZoom(this.camera.zoom * factor, this.toDiagram(e.clientX, e.clientY));
   }
 
   private down(e: PointerEvent): void {
@@ -195,13 +232,11 @@ export class Canvas {
     } else {
       // Pan: keep the grabbed diagram point under the cursor.
       const cam0 = this.camera ? { ...this.camera } : undefined;
-      const ctm = this.svg?.getScreenCTM();
-      const scale = ctm ? 1 / ctm.a : 1;
       this.el.classList.add("panning");
       move = (ev) => {
         if (!cam0) return;
         if (Math.hypot(ev.clientX - startScreen.x, ev.clientY - startScreen.y) >= DRAG_THRESHOLD) moved = true;
-        this.camera = { ...cam0, x: cam0.x - (ev.clientX - startScreen.x) * scale, y: cam0.y - (ev.clientY - startScreen.y) * scale };
+        this.camera = { ...cam0, cx: cam0.cx - (ev.clientX - startScreen.x) / cam0.zoom, cy: cam0.cy - (ev.clientY - startScreen.y) / cam0.zoom };
         this.apply();
       };
       up = () => {

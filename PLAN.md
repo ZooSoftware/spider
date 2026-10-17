@@ -151,16 +151,16 @@ Fixes from review, ordered by difficulty. Details and "done when" criteria live 
 
 ### Phase 8 — Editor quick wins: B5 + B7  (easy)
 Pure editor UI, no changes to core/layout/render.
-- [ ] B5: draggable divider between code and canvas; double-click collapses/expands the code
+- [x] B5: draggable divider between code and canvas; double-click collapses/expands the code
       panel; width remembered in `localStorage`
-- [ ] B7: zoom control in the canvas corner (slider 10–400%, −/+, 100%, Fit); gentler wheel
+- [x] B7: zoom control in the canvas corner (slider 10–400%, −/+, 100%, Fit); gentler wheel
       step; slider and wheel stay in sync
 
 ### Phase 9 — Text scales with node size: B3  (easy–medium)
 Render only, nothing new stored.
-- [ ] Font size, line height, icon size and padding scale with node size vs. kind default
+- [x] Font size, line height, icon size and padding scale with node size vs. kind default
       (clamped 0.75×–2×); wrapping uses the scaled font
-- [ ] Render tests; check in the editor while resizing
+- [x] Render tests; check in the editor while resizing
 
 ### Phase 10 — Containers fit their real content: B8  (medium)
 Layout + editor.

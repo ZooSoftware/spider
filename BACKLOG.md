@@ -55,7 +55,7 @@ within the margin; both examples look clean.
 
 ---
 
-## B3 — Text should scale when a node is resized (medium)
+## ✅ B3 — Text should scale when a node is resized (medium)
 
 **Problem:** resizing a node in the editor changes the box, but the label keeps its font
 size, so a big box has small text (and a small box overflows/ellipsizes early).
@@ -99,7 +99,7 @@ reload and rebuild; moving a connected node keeps the line orthogonal; reset rou
 
 ---
 
-## B5 — Resizable code panel (low)
+## ✅ B5 — Resizable code panel (low)
 
 **Problem:** the split between code and canvas is fixed (38%).
 
@@ -138,7 +138,7 @@ redone, with files on disk matching each step.
 
 ---
 
-## B7 — Zoom slider (low)
+## ✅ B7 — Zoom slider (low)
 
 **Problem:** wheel zoom steps feel too big or too small, and there is no way to see or set
 the current zoom level.

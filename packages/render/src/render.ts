@@ -1,7 +1,7 @@
 // Model + layout + profile → standalone SVG. The same output is used for CLI export and as
 // the editor canvas, so elements carry `data-id` attributes for hit testing.
 import type { Model, ModelEdge, ModelNode } from "@spider/core";
-import type { ResolvedProfile, Theme } from "@spider/profile-schema";
+import { DEFAULT_NODE_SIZE, type ResolvedProfile, type Theme } from "@spider/profile-schema";
 import { LABEL_BELOW_SPACE, type LayoutFile, type NodeLayout, type Point } from "@spider/layout";
 import { shapeSvg, snapToOutline, type Paint } from "./shapes.ts";
 import { embedIcon, esc, n, textWidth, wrap } from "./svg.ts";
@@ -117,29 +117,38 @@ function renderContainer(ctx: Ctx, node: ModelNode): string {
   );
 }
 
+/** Content scale of a resized node: its size vs. the kind's default size, clamped. */
+export function contentScale(l: { w: number; h: number }, defaultSize: [number, number]): number {
+  const s = Math.min(l.w / defaultSize[0], l.h / defaultSize[1]);
+  return Math.min(2, Math.max(0.75, s));
+}
+
 function renderNode(ctx: Ctx, node: ModelNode): string {
   const l = ctx.layout.nodes[node.id]!;
   const kind = ctx.profile.nodes[node.kind];
   const paint = paintFor(ctx, node, false);
   const color = kind?.style?.textColor ?? ctx.theme.textColor;
-  const fs = ctx.theme.fontSize;
+  // Text, icon and padding grow/shrink with the box when a node is resized.
+  const s = contentScale(l, kind?.size ?? DEFAULT_NODE_SIZE);
+  const fs = ctx.theme.fontSize * s;
+  const iconSize = ICON * s;
   const label = node.label ?? node.id;
   const sub = subtitle(ctx, node);
   const parts = [`<g class="spd-node" data-id="${esc(node.id)}">`, shapeSvg(kind?.shape, l.x, l.y, l.w, l.h, paint)];
 
   if (kind?.label === "below") {
-    parts.push(textBlock(wrap(label, fs, l.w + 60, 2), l.x + l.w / 2, l.y + l.h + LABEL_BELOW_SPACE - 8, "middle", color, fs, true));
+    parts.push(textBlock(wrap(label, fs, l.w + 60 * s, 2), l.x + l.w / 2, l.y + l.h + fs + 3, "middle", color, fs, true));
   } else {
     const iconColor = paint.stroke === ctx.theme.nodeStroke ? MUTED : paint.stroke;
-    const roomy = kind?.shape !== "diamond" && kind?.shape !== "circle" && l.w >= 100;
+    const roomy = kind?.shape !== "diamond" && kind?.shape !== "circle" && l.w >= 100 * s;
     const icon = roomy && kind?.iconSvg ? kind.iconSvg : undefined;
-    const inset = kind?.shape === "hexagon" || kind?.shape === "parallelogram" ? 16 : kind?.shape === "diamond" ? l.w / 5 : 10;
-    const textLeft = l.x + inset + (icon ? ICON + 8 : 0);
+    const inset = (kind?.shape === "hexagon" || kind?.shape === "parallelogram" ? 16 : kind?.shape === "diamond" ? l.w / 5 / s : 10) * s;
+    const textLeft = l.x + inset + (icon ? iconSize + 8 * s : 0);
     const textW = l.x + l.w - inset - textLeft;
     const lines = wrap(label, fs, textW, sub ? 2 : 3);
     const block = lines.length * fs * 1.25 + (sub ? fs : 0);
-    const top = l.y + (kind?.label === "top" ? 10 : (l.h - block) / 2);
-    if (icon) parts.push(embedIcon(icon, l.x + inset, l.y + (l.h - ICON) / 2, ICON, iconColor));
+    const top = l.y + (kind?.label === "top" ? 10 * s : (l.h - block) / 2);
+    if (icon) parts.push(embedIcon(icon, l.x + inset, l.y + (l.h - iconSize) / 2, iconSize, iconColor));
     const anchor = icon ? "start" : "middle";
     const tx = icon ? textLeft : l.x + l.w / 2;
     parts.push(textBlock(lines, tx, top + fs, anchor, color, fs, true));
@@ -159,7 +168,7 @@ function subtitle(ctx: Ctx, node: ModelNode): string | undefined {
 
 function textBlock(lines: string[], x: number, y: number, anchor: string, color: string, fs: number, bold: boolean): string {
   const tspans = lines.map((t, i) => `<tspan x="${n(x)}" dy="${i === 0 ? 0 : n(fs * 1.25)}">${esc(t)}</tspan>`).join("");
-  return `<text x="${n(x)}" y="${n(y)}" text-anchor="${anchor}" fill="${color}"${bold ? ' font-weight="500"' : ""}>${tspans}</text>`;
+  return `<text x="${n(x)}" y="${n(y)}" text-anchor="${anchor}" fill="${color}" font-size="${n(fs)}"${bold ? ' font-weight="500"' : ""}>${tspans}</text>`;
 }
 
 function edgeStyle(ctx: Ctx, edge: ModelEdge) {

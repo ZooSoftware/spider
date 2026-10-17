@@ -32,6 +32,8 @@ import { renderSvg } from "@spider/render/render";
 import { redo, undo } from "@codemirror/commands";
 import { Canvas, PALETTE_MIME, type Point, type Target } from "./canvas.ts";
 import { createCodeEditor } from "./code.ts";
+import { setupSplit } from "./panels.ts";
+import { setupZoom, zoomKey } from "./zoom.ts";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -482,7 +484,8 @@ const code = createCodeEditor($("code"), doc.text, (text) => {
   saveTextSoon(text);
 });
 
-$("fit").addEventListener("click", () => canvas.fit());
+setupSplit(document.querySelector<HTMLElement>(".split")!, $("divider"));
+setupZoom(canvas, $("zoom"));
 $("unpin").addEventListener("click", unpin);
 $("reset").addEventListener("click", () => void recompile(code.text(), { reset: "unpinned" }));
 const canvasEl = $("canvas");
@@ -502,6 +505,7 @@ canvasEl.addEventListener("keydown", (e) => {
     deleteSelection();
   } else if (e.key === "F2" && state.selected) openRename(state.selected);
   else if (e.key === "f") canvas.fit();
+  else if (!mod && zoomKey(canvas, e.key)) e.preventDefault();
   else if (e.key === "u") unpin();
   else if (e.key === "Escape") select(undefined);
 });
@@ -523,7 +527,7 @@ events.addEventListener("layout", (e) => {
 const hint = document.createElement("div");
 hint.className = "hint";
 hint.textContent =
-  "drag: move/pin · drop on a box: move inside · ⊕ handle: connect · double-click/F2: rename · Del: delete · Ctrl+Z: undo · F: fit";
+  "drag: move/pin · drop on a box: move inside · ⊕ handle: connect · double-click/F2: rename · Del: delete · Ctrl+Z: undo · +/−/0: zoom · F: fit";
 canvasEl.appendChild(hint);
 
 await recompile(doc.text);

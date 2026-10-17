@@ -1,5 +1,6 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { renderSvg, roundedPath, compile } from "./index.ts";
+import { contentScale } from "./render.ts";
 import { snapToOutline } from "./shapes.ts";
 import { wrap } from "./svg.ts";
 
@@ -77,4 +78,32 @@ test("wrap breaks long labels and ellipsizes overflow", () => {
   const lines = wrap("a very long label that will never fit in a tiny box", 13, 60, 2);
   expect(lines).toHaveLength(2);
   expect(lines[1]!.endsWith("…")).toBe(true);
+});
+
+describe("text scales with node size (B3)", () => {
+  const fontOf = (svg: string, id: string): number => {
+    const g = svg.slice(svg.indexOf(`data-id="${id}"`));
+    return Number(/<text [^>]*font-size="([\d.]+)"/.exec(g)![1]);
+  };
+
+  test("default-size nodes use the theme font size", async () => {
+    const { svg } = await compile(SRC);
+    expect(fontOf(svg, "api")).toBe(13);
+  });
+
+  test("a node at 2x its default size renders a larger font; clamped to 0.75x-2x", async () => {
+    const { model, profile, layout } = await compile(SRC);
+    const base = layout.nodes.api!;
+    layout.nodes.api = { ...base, w: base.w * 2, h: base.h * 2 };
+    expect(fontOf(renderSvg(model, profile, layout), "api")).toBe(26);
+    layout.nodes.api = { ...base, w: base.w * 5, h: base.h * 5 };
+    expect(fontOf(renderSvg(model, profile, layout), "api")).toBe(26);
+    layout.nodes.api = { ...base, w: base.w * 0.5, h: base.h * 0.5 };
+    expect(fontOf(renderSvg(model, profile, layout), "api")).toBeCloseTo(9.8, 1);
+  });
+
+  test("scale follows the smaller ratio (wide but not tall stays normal)", () => {
+    expect(contentScale({ w: 280, h: 60 }, [140, 60])).toBe(1);
+    expect(contentScale({ w: 210, h: 90 }, [140, 60])).toBe(1.5);
+  });
 });

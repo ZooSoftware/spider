@@ -2,20 +2,20 @@
   "version": 1,
   "nodes": {
     "customer": {"x":-629,"y":12,"w":80,"h":80,"pinned":true},
-    "vpc": {"x":-441,"y":-371,"w":1236,"h":649,"pinned":true},
-    "web": {"x":-421,"y":4,"w":131,"h":54,"pinned":true},
-    "api": {"x":-201,"y":4,"w":140,"h":60},
-    "order": {"x":27,"y":-13,"w":140,"h":60,"pinned":true},
-    "orders_db": {"x":48,"y":-198,"w":120,"h":70,"pinned":true},
-    "events": {"x":27,"y":208,"w":140,"h":50},
-    "stripe": {"x":838,"y":-17,"w":140,"h":60,"pinned":true}
+    "vpc": {"x":-482,"y":-351,"w":1236,"h":649,"pinned":true},
+    "web": {"x":-462,"y":24,"w":131,"h":54,"pinned":true},
+    "api": {"x":-242,"y":24,"w":140,"h":60},
+    "order": {"x":-14,"y":7,"w":140,"h":60,"pinned":true},
+    "orders_db": {"x":7,"y":-178,"w":120,"h":70,"pinned":true},
+    "events": {"x":-14,"y":228,"w":140,"h":50},
+    "stripe": {"x":928,"y":-34,"w":140,"h":60,"pinned":true}
   },
   "edges": {
-    "customer->web": {"points":[[-549,42],[-421,42]],"labelPos":[-485,42]},
-    "web->api": {"points":[[-290,33],[-201,33]]},
-    "api->order": {"points":[[-61,26],[27,26]],"labelPos":[-17,26]},
-    "order->orders_db": {"points":[[103,-13],[103,-128]]},
-    "order->events": {"points":[[97,47],[97,208]],"labelPos":[97,128]},
-    "order->stripe": {"points":[[167,15],[838,15]],"labelPos":[503,15]}
+    "customer->web": {"points":[[-549,52],[-462,52]],"labelPos":[-505,52]},
+    "web->api": {"points":[[-331,53],[-242,53]]},
+    "api->order": {"points":[[-102,46],[-14,46]],"labelPos":[-58,46]},
+    "order->orders_db": {"points":[[62,7],[62,-108]]},
+    "order->events": {"points":[[56,67],[56,228]],"labelPos":[56,148]},
+    "order->stripe": {"points":[[126,17],[928,17]],"labelPos":[527,17]}
   }
 }

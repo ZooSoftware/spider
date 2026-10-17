@@ -11,14 +11,23 @@
       <span class="brand">spider</span>
       <span id="file" class="file"></span>
       <span class="spacer"></span>
-      <button id="fit" title="Fit diagram to view (F)">Fit</button>
       <button id="unpin" title="Unpin selected node (U)" disabled>Unpin</button>
       <button id="reset" title="Discard all positions and lay out from scratch">Reset layout</button>
       <span id="status" class="status"></span>
     </header>
     <main class="split">
       <section id="code" class="code"></section>
-      <section id="canvas" class="canvas" tabindex="0"><div id="palette" class="palette" hidden></div></section>
+      <div id="divider" class="divider" title="Drag to resize · double-click to collapse/expand the code"></div>
+      <section id="canvas" class="canvas" tabindex="0">
+        <div id="palette" class="palette" hidden></div>
+        <div id="zoom" class="zoom">
+          <button id="zoom-out" title="Zoom out (−)">−</button>
+          <input id="zoom-slider" type="range" min="0" max="1000" step="1" aria-label="Zoom" />
+          <button id="zoom-in" title="Zoom in (+)">+</button>
+          <button id="zoom-pct" class="pct" title="Reset to 100%">100%</button>
+          <button id="zoom-fit" title="Fit diagram to view (F)">Fit</button>
+        </div>
+      </section>
     </main>
     <script type="module" src="./app.ts"></script>
   </body>
