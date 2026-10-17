@@ -6,7 +6,7 @@ Full design and open questions: `DESIGN.md`. Read it before any architectural ch
 ## Status
 
 Prototype complete (phases 0–13). Phases and checklists: `PLAN.md` (tick tasks as they land).
-User guide: `README.md`.
+User guide: `README.md`. Claude setup (rules, skills, agents, hooks): `.claude/README.md`.
 Review findings to fix later: `BACKLOG.md`.
 Prototype defaults for open design questions are listed at the top of `PLAN.md`.
 
