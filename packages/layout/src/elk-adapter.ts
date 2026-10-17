@@ -58,7 +58,7 @@ function rootOptions(profile: ResolvedProfile): Record<string, string> {
     "elk.hierarchyHandling": "INCLUDE_CHILDREN",
     "elk.edgeRouting": "ORTHOGONAL",
     "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
-    "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
+    "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
     "elk.randomSeed": "1",
     "elk.padding": "[top=20,left=20,bottom=20,right=20]",
   };

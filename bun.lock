@@ -67,6 +67,7 @@
         "@spider/core": "workspace:*",
         "@spider/layout": "workspace:*",
         "@spider/profile-schema": "workspace:*",
+        "@spider/profiles": "workspace:*",
       },
     },
   },

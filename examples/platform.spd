@@ -1,0 +1,53 @@
+# E-commerce platform — larger example (~20 nodes) to stress line routing
+use base/architecture
+
+user shopper "Shopper"
+user admin "Admin"
+
+external cdn "CDN"
+external stripe "Stripe"
+external sendgrid "SendGrid"
+
+zone edge "Edge" {
+  service gateway "API Gateway" { tech: "Envoy" }
+  service auth "Auth" { tech: "Keycloak" }
+}
+
+zone core "Core Services" {
+  group shop "Shop Domain" {
+    service catalog "Catalog" { tech: "Java" }
+    service cart "Cart" { tech: "Node" }
+    service order "Orders" { tech: "Go" }
+  }
+  group money "Payments Domain" {
+    service payment "Payments" { tech: "Go" }
+    service fraud "Fraud Check" { tech: "Python" }
+  }
+  service notify "Notifications" { tech: "Node" }
+}
+
+zone data "Data" {
+  db catalog_db "Catalog DB" { engine: "Postgres" }
+  db order_db "Orders DB" { engine: "Postgres" }
+  cache redis "Session Cache" { engine: "Redis" }
+  queue bus "Event Bus" { engine: "Kafka" }
+  storage images "Product Images"
+}
+
+shopper -> cdn : "HTTPS"
+cdn -> gateway
+admin -> gateway
+gateway -> auth : "verify token"
+gateway -> catalog
+gateway -> cart
+gateway -> order
+catalog -> catalog_db : data
+catalog -> images : data
+cart -> redis
+order -> order_db : data
+order -> payment : "charge"
+payment -> fraud
+payment -> stripe
+order -> bus : async "OrderPlaced"
+bus -> notify : async
+notify -> sendgrid : "email"

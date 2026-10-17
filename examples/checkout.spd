@@ -1,0 +1,21 @@
+# Checkout flow — small architecture example
+use base/architecture
+
+user customer "Customer"
+
+zone vpc "Production VPC" {
+  service web   "Web App"      { tech: "Next.js" }
+  service api   "API Gateway"  { tech: "Kong" }
+  service order "Order Service" { tech: "Go"  replicas: 3 }
+  db      orders_db "Orders DB" { engine: "Postgres" }
+  queue   events "Order Events" { engine: "Kafka" }
+}
+
+external stripe "Stripe"
+
+customer -> web : "HTTPS"
+web -> api
+api -> order : "REST"
+order -> orders_db : data
+order -> events : async "OrderPlaced"
+order -> stripe : "charge"

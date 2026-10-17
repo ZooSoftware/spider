@@ -61,7 +61,8 @@ packages/
 bun install
 bun test                    # all tests; `bun test packages/core` for one package
 bun run typecheck           # tsc --noEmit over packages/*/src
-bun run spider <args>       # CLI (from Phase 4)
+bun run spider build examples/checkout.spd --png   # → .svg/.png + .layout.json
+bun run spider check <file.spd>                    # diagnostics only, exit 1 on errors
 ```
 
 Packages are consumed as TypeScript source (`exports: ./src/index.ts`); no build step.

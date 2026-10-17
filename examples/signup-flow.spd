@@ -1,0 +1,18 @@
+# Signup flowchart — proves a second built-in profile
+use base/flowchart
+
+start s "Start"
+io form "Read signup form"
+process validate "Validate input"
+decision ok "Valid?"
+process save "Create account"
+io mail "Send welcome email"
+end e "Done"
+
+s -> form
+form -> validate
+validate -> ok
+ok -> save : "yes"
+ok -> form : "no"
+save -> mail
+mail -> e

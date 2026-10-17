@@ -78,13 +78,14 @@ Chosen to keep the prototype simple. All can be revisited after review.
 
 ## Phase 4 — Render + CLI  ⭐ Review milestone 1
 
-- [ ] `render`: model + layout + profile → standalone SVG (icons, labels, containers,
+- [x] `render`: model + layout + profile → standalone SVG (icons, labels, containers,
       orthogonal edges, arrowheads, edge labels, theme)
-- [ ] `cli`:
+- [x] `cli`:
   - `spider build <file.spd> [-o out.svg]` (creates/updates the layout sidecar)
   - `spider check <file.spd>` (diagnostics)
   - `spider layout --reset <file.spd>`
-- [ ] `examples/`: checkout architecture, a bigger one (~20 nodes) to test overlaps
+- [x] Shape-aware edge endpoints (diamond, parallelogram, hexagon, ellipse)
+- [x] `examples/`: checkout architecture, a bigger one (~20 nodes) to test overlaps
 
 **You review:** run the CLI on the examples, open the SVGs, edit the `.spd` and rebuild,
 and confirm the layout stays stable.

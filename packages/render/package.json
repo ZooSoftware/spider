@@ -9,6 +9,7 @@
   "dependencies": {
     "@spider/core": "workspace:*",
     "@spider/profile-schema": "workspace:*",
-    "@spider/layout": "workspace:*"
+    "@spider/layout": "workspace:*",
+    "@spider/profiles": "workspace:*"
   }
 }
