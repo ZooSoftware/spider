@@ -133,7 +133,7 @@ describe("layoutDiagram: incremental", () => {
     expect(l2).toEqual(l1);
   });
 
-  test("pinned container keeps x/y but grows to fit", async () => {
+  test("pinned container grows to fit a child dragged out", async () => {
     const model = buildModel(NODES, EDGES);
     const l1 = await layoutDiagram(model, profile);
     const vpc = l1.nodes.vpc!;

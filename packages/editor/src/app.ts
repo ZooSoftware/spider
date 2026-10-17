@@ -19,6 +19,8 @@ import {
 import { DEFAULT_NODE_SIZE, type ResolvedProfile } from "@spider/profile-schema";
 import { validate } from "@spider/profiles/validate";
 import {
+  containerOverlapDiagnostics,
+  containerOverlaps,
   emptyLayout,
   fitContainers,
   layoutDiagram,
@@ -48,6 +50,8 @@ const state = {
   model: undefined as Model | undefined,
   profile: undefined as ProfileCache | undefined,
   layout: emptyLayout(),
+  /** Parse + profile + validation diagnostics; layout warnings are added on top. */
+  baseDiagnostics: [] as Diagnostic[],
   diagnostics: [] as Diagnostic[],
   selected: undefined as Target | undefined,
   /** Container highlighted as drop target while dragging a node. */
@@ -150,8 +154,8 @@ async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promi
   state.layout = layout;
   const sel = state.selected;
   if (sel && !(sel.type === "node" ? model.nodes.has(sel.id) : model.edges.has(sel.id))) state.selected = undefined;
-  state.diagnostics = [...diagnostics, ...remapProfileDiagnostics(cache, model.uses), ...validate(model, cache.profile)];
-  code.setDiagnostics(state.diagnostics);
+  state.baseDiagnostics = [...diagnostics, ...remapProfileDiagnostics(cache, model.uses), ...validate(model, cache.profile)];
+  refreshDiagnostics();
   if (profileChanged) renderPalette();
   draw();
   status();
@@ -162,6 +166,14 @@ async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promi
     state.pendingRename = undefined;
     openRename({ type: "node", id });
   }
+}
+
+/** Layout-dependent warnings (container overlaps) change on every drag, not only on recompile. */
+function refreshDiagnostics(): void {
+  if (!state.model || !state.profile) return;
+  state.diagnostics = [...state.baseDiagnostics, ...containerOverlapDiagnostics(state.model, state.profile.profile, state.layout.nodes)];
+  code.setDiagnostics(state.diagnostics);
+  status();
 }
 
 const recompileSoon = debounce((text: string) => void recompile(text), 150);
@@ -204,6 +216,12 @@ function overlay(): string {
   for (const n of Object.values(nodes)) {
     if (n.pinned) parts.push(`<circle class="spd-pin" cx="${n.x + n.w - 1}" cy="${n.y + 1}" r="3.5"><title>pinned</title></circle>`);
   }
+  if (state.model && state.profile) {
+    for (const { node, container } of containerOverlaps(state.model, state.profile.profile, nodes)) {
+      const n = nodes[node];
+      if (n) parts.push(box(n, 5, "spd-warn").replace("/>", `><title>Overlaps "${container}" but is not inside it: drag it out, or into it</title></rect>`));
+    }
+  }
   const drop = state.dropTarget ? nodes[state.dropTarget] : undefined;
   if (drop) parts.push(box(drop, 3, "spd-drop"));
   const sel = state.selected;
@@ -213,7 +231,7 @@ function overlay(): string {
   } else if (sel?.type === "node" && nodes[sel.id]) {
     const n = nodes[sel.id]!;
     parts.push(box(n, 4, "spd-sel"));
-    if (!isContainer(sel.id)) parts.push(`<rect class="spd-handle" data-id="${sel.id}" x="${n.x + n.w - 1}" y="${n.y + n.h - 1}" width="9" height="9" rx="2"/>`);
+    parts.push(`<rect class="spd-handle" data-id="${sel.id}" x="${n.x + n.w - 1}" y="${n.y + n.h - 1}" width="9" height="9" rx="2"/>`);
     if (!state.connect) {
       parts.push(
         `<g class="spd-connect" data-id="${sel.id}"><title>drag to connect</title><circle cx="${n.x + n.w + 14}" cy="${n.y + n.h / 2}" r="7"/><path d="M${n.x + n.w + 10} ${n.y + n.h / 2}h8M${n.x + n.w + 14} ${n.y + n.h / 2 - 4}v8"/></g>`,
@@ -346,20 +364,37 @@ const canvas = new Canvas($("canvas"), {
     // Dropped into another container (or out to the top level): membership is code.
     if (target !== parent && edit((text) => moveNode(text, id, target), "move.spider")) return;
     relayoutGeometry();
+    refreshDiagnostics();
     saveLayoutSoon();
     drawSoon();
-    status();
   },
   onResize(id, dx, dy, done) {
     const n = state.layout.nodes[id];
     if (!n) return;
     drag ??= { ids: [id], exclude: new Set([id]), orig: new Map([[id, { ...n }]]) };
     const o = drag.orig.get(id)!;
-    state.layout.nodes[id] = { ...o, w: Math.max(40, Math.round(o.w + dx)), h: Math.max(30, Math.round(o.h + dy)), pinned: true };
+    const w = Math.max(40, Math.round(o.w + dx));
+    const h = Math.max(30, Math.round(o.h + dy));
+    if (isContainer(id)) {
+      // Containers fit their children: the handle sets a minimum size, never below the content.
+      state.layout.nodes[id] = { ...o, minW: w, minH: h, pinned: true };
+    } else {
+      state.layout.nodes[id] = { ...o, w, h, pinned: true };
+    }
     relayoutGeometry();
     drawSoon();
     if (done) {
       drag = undefined;
+      const c = state.layout.nodes[id]!;
+      // Dragged back down to (or below) the content: no minimum left to remember.
+      if (isContainer(id) && c.minW !== undefined && c.minH !== undefined) {
+        const fit = { ...c, minW: undefined, minH: undefined };
+        const probe = { ...state.layout.nodes, [id]: fit };
+        if (state.model && state.profile) fitContainers(state.model, state.profile.profile, probe);
+        if (c.minW <= probe[id]!.w) delete c.minW;
+        if (c.minH <= probe[id]!.h) delete c.minH;
+      }
+      refreshDiagnostics();
       saveLayoutSoon();
     }
   },

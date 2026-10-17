@@ -49,6 +49,8 @@ export function parseLayoutFile(json: string): { layout: LayoutFile; diagnostics
     }
     const n: NodeLayout = { x: v.x, y: v.y, w: v.w, h: v.h };
     if (v.pinned === true) n.pinned = true;
+    if (isNum(v.minW) && v.minW > 0) n.minW = v.minW;
+    if (isNum(v.minH) && v.minH > 0) n.minH = v.minH;
     layout.nodes[id] = n;
   }
   for (const [id, v] of Object.entries(isObj(raw.edges) ? raw.edges : {})) {
@@ -67,7 +69,11 @@ export function parseLayoutFile(json: string): { layout: LayoutFile; diagnostics
 }
 
 function nodeJson(n: NodeLayout): string {
-  return JSON.stringify(n.pinned ? { x: n.x, y: n.y, w: n.w, h: n.h, pinned: true } : { x: n.x, y: n.y, w: n.w, h: n.h });
+  const o: Record<string, unknown> = { x: n.x, y: n.y, w: n.w, h: n.h };
+  if (n.pinned) o.pinned = true;
+  if (n.minW) o.minW = n.minW;
+  if (n.minH) o.minH = n.minH;
+  return JSON.stringify(o);
 }
 
 function edgeJson(e: EdgeLayout): string {

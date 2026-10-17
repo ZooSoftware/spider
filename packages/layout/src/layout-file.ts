@@ -11,6 +11,9 @@ export interface NodeLayout {
   h: number;
   /** Pinned nodes never move during layout. Set when a user drags a node. */
   pinned?: boolean;
+  /** Containers only: minimum size set by the user; the box is never smaller than its content. */
+  minW?: number;
+  minH?: number;
 }
 
 export interface EdgeLayout {

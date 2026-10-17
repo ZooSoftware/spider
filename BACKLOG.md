@@ -161,7 +161,7 @@ per file in `localStorage`.
 
 ---
 
-## B8 — Container boundaries cover nodes that are not inside them (high, bug)
+## ✅ B8 — Container boundaries cover nodes that are not inside them (high, bug)
 
 **Problem:** a container (e.g. "Production VPC") can end up drawn over nodes that are not
 its children, so they look like they are inside the boundary when they are not.

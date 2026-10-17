@@ -164,11 +164,11 @@ Render only, nothing new stored.
 
 ### Phase 10 — Containers fit their real content: B8  (medium)
 Layout + editor.
-- [ ] Containers always fit their children exactly (drop "pinned only grows")
-- [ ] Container resize handle sets a *minimum* size (never smaller than content)
-- [ ] A container overlapping a node that is not inside it: warning outline in the editor +
+- [x] Containers always fit their children exactly (drop "pinned only grows")
+- [x] Container resize handle sets a *minimum* size (never smaller than content)
+- [x] A container overlapping a node that is not inside it: warning outline in the editor +
       `layout/overlaps-container` warning (never auto-moved, see BACKLOG design rules)
-- [ ] Layout tests: container (pinned or not) shrinks back when children move closer; min size
+- [x] Layout tests: container (pinned or not) shrinks back when children move closer; min size
       respected but never below content; overlaps reported
 
 ### Phase 11 — Router quality: B2 + B1  (medium–hard)

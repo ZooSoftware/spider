@@ -1,5 +1,5 @@
 // Geometry primitives and sizing rules shared by placement, routing and rendering.
-import type { Model, ModelNode } from "@spider/core";
+import type { Diagnostic, Model, ModelNode } from "@spider/core";
 import { DEFAULT_NODE_SIZE, type ResolvedNodeKind, type ResolvedProfile, type Side } from "@spider/profile-schema";
 import type { NodeLayout } from "./layout-file.ts";
 
@@ -82,9 +82,9 @@ export function containersBottomUp(model: Model): string[] {
 }
 
 /**
- * Fit every container around its children (+ padding, + title space). Non-pinned containers
- * are fitted exactly; pinned ones keep x/y and only grow. Empty containers keep their box.
- * Mutates and returns `nodes`.
+ * Fit every container exactly around its children (+ padding, + title space), so it grows
+ * and shrinks with its content, pinned or not. A user-set minimum size (minW/minH) only adds
+ * room to the right/bottom. Empty containers keep their box. Mutates and returns `nodes`.
  */
 export function fitContainers(
   model: Model,
@@ -109,24 +109,54 @@ export function fitContainers(
       nodes[id] = { ...cur };
       continue;
     }
-    let fit: Rect = {
-      x: x1 - CONTAINER_PADDING,
-      y: y1 - CONTAINER_TITLE_SPACE,
-      w: x2 - x1 + 2 * CONTAINER_PADDING,
-      h: y2 - y1 + CONTAINER_TITLE_SPACE + CONTAINER_PADDING,
+    const w = x2 - x1 + 2 * CONTAINER_PADDING;
+    const h = y2 - y1 + CONTAINER_TITLE_SPACE + CONTAINER_PADDING;
+    const out: NodeLayout = {
+      x: Math.round(x1 - CONTAINER_PADDING),
+      y: Math.round(y1 - CONTAINER_TITLE_SPACE),
+      w: Math.round(Math.max(w, cur?.minW ?? 0)),
+      h: Math.round(Math.max(h, cur?.minH ?? 0)),
     };
-    if (cur?.pinned) {
-      const nx = Math.min(cur.x, fit.x), ny = Math.min(cur.y, fit.y);
-      fit = {
-        x: nx,
-        y: ny,
-        w: Math.max(cur.x + cur.w, fit.x + fit.w) - nx,
-        h: Math.max(cur.y + cur.h, fit.y + fit.h) - ny,
-      };
-    }
-    const out: NodeLayout = { x: Math.round(fit.x), y: Math.round(fit.y), w: Math.round(fit.w), h: Math.round(fit.h) };
     if (cur?.pinned) out.pinned = true;
+    if (cur?.minW) out.minW = cur.minW;
+    if (cur?.minH) out.minH = cur.minH;
     nodes[id] = out;
   }
   return nodes;
+}
+
+/** Overlaps as user-facing warnings (spans point at the overlapping node). */
+export function containerOverlapDiagnostics(model: Model, profile: ResolvedProfile, nodes: Record<string, NodeLayout>): Diagnostic[] {
+  return containerOverlaps(model, profile, nodes).map(({ node, container }) => ({
+    severity: "warning",
+    code: "layout/overlaps-container",
+    message: `"${node}" is drawn over "${container}" but is not inside it; drag it out of the box, or into it to make it a child`,
+    span: model.nodes.get(node)?.span,
+  }));
+}
+
+export interface ContainerOverlap {
+  /** The node drawn under a container it doesn't belong to. */
+  node: string;
+  container: string;
+}
+
+/**
+ * Nodes whose box overlaps a container they are not inside (and that is not inside them).
+ * These are shown to the user, never moved automatically.
+ */
+export function containerOverlaps(model: Model, profile: ResolvedProfile, nodes: Record<string, NodeLayout>): ContainerOverlap[] {
+  const out: ContainerOverlap[] = [];
+  const containers = [...model.nodes.values()].filter((n) => isContainer(n) && nodes[n.id]);
+  for (const node of model.nodes.values()) {
+    const l = nodes[node.id];
+    if (!l) continue;
+    const r = occupiedRect(profile, node, l);
+    const anc = new Set(ancestors(model, node.id));
+    for (const c of containers) {
+      if (c.id === node.id || anc.has(c.id) || ancestors(model, c.id).includes(node.id)) continue;
+      if (rectsOverlap(r, nodes[c.id]!)) out.push({ node: node.id, container: c.id });
+    }
+  }
+  return out;
 }

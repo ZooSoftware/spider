@@ -92,3 +92,4 @@ button:disabled { opacity: 0.45; cursor: default; }
 .zoom button { padding: 2px 8px; min-width: 28px; }
 .zoom .pct { min-width: 54px; font-variant-numeric: tabular-nums; }
 .zoom input[type="range"] { width: 120px; accent-color: var(--accent); }
+.canvas .spd-warn { fill: none; stroke: var(--warning); stroke-width: 2; stroke-dasharray: 6 3; pointer-events: none; }
