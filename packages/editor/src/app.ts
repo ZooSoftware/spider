@@ -13,7 +13,6 @@ import {
   moveNode,
   renameEdgeId,
   renameId,
-  parseModel,
   setLabel,
   type Diagnostic,
   type Model,
@@ -21,9 +20,8 @@ import {
   type UseDecl,
 } from "@spider/core";
 import { DEFAULT_NODE_SIZE, type ResolvedProfile } from "@spider/profile-schema";
-import { validate } from "@spider/profiles/validate";
+import { analyze, layoutDiagnostics, type LoadedProfile } from "@spider/engine";
 import {
-  containerOverlapDiagnostics,
   containerOverlaps,
   edgeLabelPos,
   emptyLayout,
@@ -31,7 +29,6 @@ import {
   segmentNormalAxis,
   sideOf,
   fitContainers,
-  layoutDiagram,
   parseLayoutFile,
   routeEdges,
   serializeLayoutFile,
@@ -40,7 +37,7 @@ import {
   type NodeLayout,
   type Point as LayoutPoint,
 } from "@spider/layout";
-import { renderSvg } from "@spider/render/render";
+import { renderSvg } from "@spider/render";
 import { Canvas, PALETTE_MIME, type Point, type Target } from "./canvas.ts";
 import { createCodeEditor } from "./code.ts";
 import { exportPng, exportSvg } from "./export.ts";
@@ -216,25 +213,32 @@ const saveLayoutSoon = debounce(() => void putLayout(), 400);
 
 // ---- code → canvas ----
 
+/** Profiles come from the server (cached per set of `use` declarations). */
+async function loadProfile(uses: UseDecl[]): Promise<LoadedProfile & { cache: ProfileCache }> {
+  const cache = await profileFor(uses);
+  return { profile: cache.profile, diagnostics: remapProfileDiagnostics(cache, uses), cache };
+}
+
+/** The layout to keep: the current one plus remembered positions, or only pinned nodes on reset. */
+function previousLayout(model: Model, reset: boolean): LayoutFile {
+  if (reset) {
+    const pinned = Object.entries(state.layout.nodes).filter(([, n]) => n.pinned);
+    return { version: 1, nodes: Object.fromEntries(pinned), edges: {} };
+  }
+  const previous = { ...state.layout, nodes: { ...state.layout.nodes } };
+  for (const id of model.nodes.keys()) {
+    const remembered = state.memory.get(id);
+    if (!previous.nodes[id] && remembered) previous.nodes[id] = remembered;
+  }
+  return previous;
+}
+
 async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promise<void> {
   const gen = ++state.generation;
-  const { model, diagnostics } = parseModel(text);
-  const cache = await profileFor(model.uses);
+  const result = await analyze(text, loadProfile, { previous: (model) => previousLayout(model, !!opts.reset) });
   if (gen !== state.generation) return;
-
-  let previous: LayoutFile;
-  if (opts.reset) {
-    const pinned = Object.entries(state.layout.nodes).filter(([, n]) => n.pinned);
-    previous = { version: 1, nodes: Object.fromEntries(pinned), edges: {} };
-  } else {
-    previous = { ...state.layout, nodes: { ...state.layout.nodes } };
-    for (const id of model.nodes.keys()) {
-      const remembered = state.memory.get(id);
-      if (!previous.nodes[id] && remembered) previous.nodes[id] = remembered;
-    }
-  }
-  const layout = await layoutDiagram(model, cache.profile, previous);
-  if (gen !== state.generation) return;
+  const { model, layout } = result;
+  const cache = result.loaded.cache;
 
   for (const [id, n] of Object.entries(state.layout.nodes)) if (!layout.nodes[id]) state.memory.set(id, n);
   for (const id of model.nodes.keys()) state.memory.delete(id);
@@ -245,7 +249,7 @@ async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promi
   state.layout = layout;
   const sel = state.selected;
   if (sel && !(sel.type === "node" ? model.nodes.has(sel.id) : model.edges.has(sel.id))) state.selected = undefined;
-  state.baseDiagnostics = [...diagnostics, ...remapProfileDiagnostics(cache, model.uses), ...validate(model, cache.profile)];
+  state.baseDiagnostics = result.diagnostics;
   refreshDiagnostics();
   if (profileChanged) renderPalette();
   draw();
@@ -267,7 +271,7 @@ async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promi
 /** Layout-dependent warnings (container overlaps) change on every drag, not only on recompile. */
 function refreshDiagnostics(): void {
   if (!state.model || !state.profile) return;
-  state.diagnostics = [...state.baseDiagnostics, ...containerOverlapDiagnostics(state.model, state.profile.profile, state.layout.nodes)];
+  state.diagnostics = [...state.baseDiagnostics, ...layoutDiagnostics({ model: state.model, profile: state.profile.profile, layout: state.layout })];
   code.setDiagnostics(state.diagnostics);
   status();
 }

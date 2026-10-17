@@ -15,6 +15,7 @@
       "dependencies": {
         "@spider/core": "workspace:*",
         "@spider/editor": "workspace:*",
+        "@spider/engine": "workspace:*",
         "@spider/layout": "workspace:*",
         "@spider/profile-schema": "workspace:*",
         "@spider/profiles": "workspace:*",
@@ -35,11 +36,23 @@
         "@codemirror/state": "^6",
         "@codemirror/view": "^6",
         "@spider/core": "workspace:*",
+        "@spider/engine": "workspace:*",
         "@spider/layout": "workspace:*",
         "@spider/profile-schema": "workspace:*",
         "@spider/profiles": "workspace:*",
         "@spider/render": "workspace:*",
         "codemirror": "^6",
+      },
+    },
+    "packages/engine": {
+      "name": "@spider/engine",
+      "version": "0.0.0",
+      "dependencies": {
+        "@spider/core": "workspace:*",
+        "@spider/layout": "workspace:*",
+        "@spider/profile-schema": "workspace:*",
+        "@spider/profiles": "workspace:*",
+        "@spider/render": "workspace:*",
       },
     },
     "packages/layout": {
@@ -74,7 +87,9 @@
         "@spider/core": "workspace:*",
         "@spider/layout": "workspace:*",
         "@spider/profile-schema": "workspace:*",
-        "@spider/profiles": "workspace:*",
+      },
+      "devDependencies": {
+        "@spider/engine": "workspace:*",
       },
     },
   },
@@ -108,6 +123,8 @@
     "@spider/core": ["@spider/core@workspace:packages/core"],
 
     "@spider/editor": ["@spider/editor@workspace:packages/editor"],
+
+    "@spider/engine": ["@spider/engine@workspace:packages/engine"],
 
     "@spider/layout": ["@spider/layout@workspace:packages/layout"],
 

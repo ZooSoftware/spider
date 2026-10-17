@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { renderSvg, roundedPath, compile } from "../src/index.ts";
+import { compile } from "@spider/engine/node";
+import { renderSvg, roundedPath } from "../src/index.ts";
 import { contentScale } from "../src/render.ts";
 import { snapToOutline } from "../src/shapes.ts";
 import { wrap } from "../src/svg.ts";

@@ -3,7 +3,7 @@
 | What | Where | Loaded |
 |---|---|---|
 | Project facts, invariants, commands | `../CLAUDE.md` | every session |
-| Per-package rules | `rules/core.md`, `layout.md`, `editor.md`, `profiles.md` | when matching files are touched |
+| Per-package rules | `rules/core.md`, `layout.md`, `editor.md`, `profiles.md`, `architecture.md` | when matching files are touched |
 | `ship-phase` skill | the phase loop: implement → test → verify → docs → commit → report | on demand |
 | `visual-check` skill | render examples fresh to PNG and inspect | on demand |
 | `browser-test` skill | drive the editor in Chrome on a scratch copy, check files on disk | on demand |

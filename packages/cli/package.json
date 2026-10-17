@@ -12,6 +12,7 @@
     "@spider/profiles": "workspace:*",
     "@spider/layout": "workspace:*",
     "@spider/render": "workspace:*",
-    "@spider/editor": "workspace:*"
+    "@spider/editor": "workspace:*",
+    "@spider/engine": "workspace:*"
   }
 }

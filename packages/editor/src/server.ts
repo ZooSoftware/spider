@@ -5,7 +5,7 @@ import { existsSync, watch } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import type { UseDecl } from "@spider/core";
-import { loadProfiles } from "@spider/profiles";
+import { layoutPathFor, profilesFromDisk, searchPathsFor } from "@spider/engine/node";
 import index from "./index.html";
 
 export interface DevServerOptions {
@@ -22,7 +22,8 @@ type Push = (event: string, data: unknown) => void;
 
 export async function startDevServer(opts: DevServerOptions): Promise<DevServer> {
   const file = resolve(opts.file);
-  const layoutPath = `${file}.layout.json`;
+  const layoutPath = layoutPathFor(file);
+  const loadProfiles = profilesFromDisk(searchPathsFor(file));
   const dir = dirname(file);
   if (!existsSync(file)) await writeFile(file, "use base/architecture\n\n");
 
@@ -102,7 +103,7 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
       "/api/profile": {
         POST: async (req) => {
           const uses = (await req.json()) as UseDecl[];
-          const result = await loadProfiles(uses, { searchPaths: [dir, resolve(dir, "profiles"), resolve("profiles")] });
+          const result = await loadProfiles(uses);
           return Response.json(result);
         },
       },

@@ -45,12 +45,15 @@ packages/
   profiles/        loader/resolver + built-in profiles
   layout/          ELK adapter, incremental/pinned layout, routing
   render/          model + layout + profile → SVG
+  engine/          the pipeline every host runs (text → model → profile → layout → diagnostics);
+                   `@spider/engine/node` adds compile-from-disk and file conventions
   cli/             spider build
   editor/          web app, two-way sync
 ```
 
 - `core` has **no DOM, no React, and no knowledge of specific diagram types**.
-- Dependencies point inward: `editor`/`cli` → `render`/`layout`/`profiles` → `core`.
+- Dependencies point inward: `editor`/`cli` → `engine` → `render`/`layout`/`profiles` → `core`.
+- New hosts (MCP server, VS Code…) go through `engine`, not by re-assembling the pipeline.
 - Enforced, not just documented: `tests/architecture.test.ts` (allowed package imports,
   Node APIs only in `cli`, `editor/src/server.ts`, `profiles/src/load.ts`) and the typecheck
   (`tsconfig.pure.json`: core/layout/profile-schema build without DOM or Node;

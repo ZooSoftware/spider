@@ -14,13 +14,19 @@ const ALLOWED: Record<string, string[]> = {
   "profile-schema": [],
   "profiles": ["core", "profile-schema"],
   "layout": ["core", "profile-schema"],
-  "render": ["core", "profile-schema", "layout", "profiles"],
-  "cli": ["core", "profile-schema", "profiles", "layout", "render", "editor"],
-  "editor": ["core", "profile-schema", "profiles", "layout", "render"],
+  "render": ["core", "profile-schema", "layout"],
+  "engine": ["core", "profile-schema", "profiles", "layout", "render"],
+  "cli": ["core", "profile-schema", "profiles", "layout", "render", "engine", "editor"],
+  "editor": ["core", "profile-schema", "profiles", "layout", "render", "engine"],
 };
 
 /** The only source files that may use Node APIs (file IO, paths, processes). */
-const NODE_ALLOWED = [/^packages\/cli\/src\//, /^packages\/editor\/src\/server\.ts$/, /^packages\/profiles\/src\/load\.ts$/];
+const NODE_ALLOWED = [
+  /^packages\/cli\/src\//,
+  /^packages\/editor\/src\/server\.ts$/,
+  /^packages\/engine\/src\/node\.ts$/,
+  /^packages\/profiles\/src\/load\.ts$/,
+];
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { recursive: true, encoding: "utf8" })
@@ -81,7 +87,7 @@ describe("architecture", () => {
     expect(bad).toEqual([]);
   });
 
-  test("Node APIs are only used by the CLI, the dev server and the profile loader", () => {
+  test("Node APIs are only used by the CLI, the dev server, engine/node and the profile loader", () => {
     const bad = files
       .filter(({ rel }) => !NODE_ALLOWED.some((re) => re.test(rel)))
       .flatMap(({ file, rel }) => imports(file).filter((s) => s.startsWith("node:") || s === "bun").map((s) => `${rel} imports ${s}`));

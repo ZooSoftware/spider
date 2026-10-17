@@ -17,6 +17,7 @@
     "@spider/profile-schema": "workspace:*",
     "@spider/profiles": "workspace:*",
     "@spider/render": "workspace:*",
-    "codemirror": "^6"
+    "codemirror": "^6",
+    "@spider/engine": "workspace:*"
   }
 }

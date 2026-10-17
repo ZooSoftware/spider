@@ -1,3 +1,3 @@
-// Public API of @spider/render: SVG rendering and the end-to-end compile pipeline.
+// Public API of @spider/render: model + layout + profile → SVG. The pipeline that produces the
+// layout lives in @spider/engine.
 export { renderSvg, roundedPath, type RenderOptions } from "./render.ts";
-export { compile, type CompileOptions, type CompileResult } from "./compile.ts";

@@ -4,9 +4,9 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { parseModel, type Diagnostic, type UseDecl } from "@spider/core";
-import { loadProfiles, profileCheatSheet } from "@spider/profiles";
+import { compile, layoutPathFor, profileSearchPaths, profilesFromDisk, searchPathsFor } from "@spider/engine/node";
+import { profileCheatSheet } from "@spider/profiles";
 import { parseLayoutFile, serializeLayoutFile, type LayoutFile } from "@spider/layout";
-import { compile } from "@spider/render";
 import { formatDiagnostic } from "./diagnostics.ts";
 
 const USAGE = `Usage:
@@ -66,7 +66,7 @@ async function main(argv: string[]): Promise<number> {
 
   const file = resolve(args.file);
   const text = await readFile(file, "utf8");
-  const layoutPath = `${file}.layout.json`;
+  const layoutPath = layoutPathFor(file);
   const diagnostics: Diagnostic[] = [];
 
   let previous: LayoutFile | undefined;
@@ -76,12 +76,7 @@ async function main(argv: string[]): Promise<number> {
     diagnostics.push(...parsed.diagnostics);
   }
 
-  const dir = dirname(file);
-  const result = await compile(text, {
-    previous,
-    reset: args.reset,
-    searchPaths: [dir, resolve(dir, "profiles"), resolve("profiles")],
-  });
+  const result = await compile(text, { previous, reset: args.reset, searchPaths: searchPathsFor(file) });
   diagnostics.push(...result.diagnostics);
 
   for (const d of diagnostics) console.error(formatDiagnostic(d, text, args.file));
@@ -115,7 +110,7 @@ async function profileDoc(target: string): Promise<number> {
   } else {
     uses = [{ profile: target, span: { start: 0, end: 0 } }];
   }
-  const { profile, diagnostics } = await loadProfiles(uses, { searchPaths: [dir, resolve(dir, "profiles"), resolve("profiles")] });
+  const { profile, diagnostics } = await profilesFromDisk(profileSearchPaths(dir))(uses);
   for (const d of diagnostics) console.error(`${d.severity} ${d.code}: ${d.message}`);
   if (Object.keys(profile.nodes).length === 0) return 1;
   console.log(profileCheatSheet(profile));

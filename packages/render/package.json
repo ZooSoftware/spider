@@ -4,13 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./render": "./src/render.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@spider/core": "workspace:*",
     "@spider/profile-schema": "workspace:*",
-    "@spider/layout": "workspace:*",
-    "@spider/profiles": "workspace:*"
+    "@spider/layout": "workspace:*"
+  },
+  "devDependencies": {
+    "@spider/engine": "workspace:*"
   }
 }

@@ -6,6 +6,8 @@
     "packages/core/src/**/*.ts",
     "packages/profile-schema/src/**/*.ts",
     "packages/layout/src/**/*.ts",
+    "packages/render/src/**/*.ts",
+    "packages/engine/src/index.ts",
     "packages/profiles/src/validate.ts",
     "packages/profiles/src/cheatsheet.ts",
     "packages/profiles/src/sanitize.ts"

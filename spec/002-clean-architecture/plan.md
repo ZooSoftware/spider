@@ -40,11 +40,15 @@ skill for router/render changes, the `browser-test` skill for editor changes.
 
 ## Phase C — Engine package  (medium)
 
-- [ ] `@spider/engine`: the pipeline shared by the CLI, the editor and future hosts (MCP,
-      VS Code). Browser-safe entry (`analyze`, diagnostics) and a Node entry
-      (`@spider/engine/node`: `compile` from disk, sidecar path, profile search paths)
-- [ ] `compile` moves out of `render`; `render` no longer depends on `profiles`
-- [ ] CLI and editor (app + server) use the engine; duplicated search paths removed
+- [x] `@spider/engine`: the pipeline shared by the CLI, the editor and future hosts (MCP,
+      VS Code). Browser-safe entry: `analyze(text, profileSource, { previous, reset })`,
+      `layoutDiagnostics`, `allDiagnostics`; profile loading is injected (disk in the CLI,
+      HTTP in the editor). Node entry `@spider/engine/node`: `compile`, `layoutPathFor`,
+      `profileSearchPaths`/`searchPathsFor`, `profilesFromDisk`
+- [x] `compile` moves out of `render`; `render` no longer depends on `profiles` and loses its
+      `./render` sub-path export; the example quality test moves to `engine/tests`
+- [x] CLI and editor (app + server) use the engine; duplicated search paths and sidecar
+      path removed; boundary rules and the pure typecheck cover `engine` and `render`
 
 ## Phase D — Editor layers  (medium–hard)
 
