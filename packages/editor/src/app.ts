@@ -2,7 +2,8 @@
 //  code → canvas: parse, validate, incremental layout, render (debounced as you type).
 //  canvas → layout: drag / resize / unpin / reset only touch the layout sidecar.
 //  canvas → code: connect, delete, rename, add from palette and move into/out of containers
-//  become targeted text edits applied through the code editor (so they are undoable).
+//  become targeted text edits applied through the code editor.
+//  history: one undo/redo stack of { text, layout } snapshots, one step per user action.
 import {
   addEdge,
   addNode,
@@ -31,9 +32,9 @@ import {
   type NodeLayout,
 } from "@spider/layout";
 import { renderSvg } from "@spider/render/render";
-import { redo, undo } from "@codemirror/commands";
 import { Canvas, PALETTE_MIME, type Point, type Target } from "./canvas.ts";
 import { createCodeEditor } from "./code.ts";
+import { History } from "./history.ts";
 import { setupSplit } from "./panels.ts";
 import { setupZoom, zoomKey } from "./zoom.ts";
 
@@ -66,7 +67,85 @@ const state = {
   savedText: "",
   generation: 0,
   saving: 0,
+  /** Record a history step when the next recompile finishes (after a code change). */
+  commitPending: false,
+  /** An undo/redo is being applied; its recompile hasn't settled yet. */
+  restoring: false,
 };
+
+// ---- history ----
+
+interface Snapshot {
+  text: string;
+  layout: string;
+  selected: Target | undefined;
+}
+
+const sameContent = (a: Snapshot, b: Snapshot): boolean => a.text === b.text && a.layout === b.layout;
+const history = new History<Snapshot>(sameContent);
+
+function snapshot(): Snapshot {
+  return { text: code.text(), layout: serializeLayoutFile(state.layout, state.model), selected: state.selected };
+}
+
+/** Record the current state as one step (no-op if nothing changed). */
+function commit(): void {
+  if (!state.model) return;
+  history.commit(snapshot());
+  historyButtons();
+}
+
+let typingTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** A burst of typing becomes one step once the user pauses. */
+function commitTypingSoon(): void {
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    typingTimer = undefined;
+    state.commitPending = true;
+    void recompile(code.text());
+  }, 800);
+}
+
+/** Make sure un-committed work (e.g. typing just now) is a step before moving in history. */
+function flush(): void {
+  clearTimeout(typingTimer);
+  typingTimer = undefined;
+  if (state.restoring) return;
+  const cur = history.current;
+  if (state.model && cur && !sameContent(cur, snapshot())) commit();
+}
+
+function restore(s: Snapshot | undefined): void {
+  if (!s) return;
+  state.commitPending = false;
+  state.layout = parseLayoutFile(s.layout).layout;
+  state.selected = s.selected;
+  code.setText(s.text);
+  saveTextSoon(s.text);
+  state.restoring = true;
+  // The recompile re-routes edges and re-orders entries: store the settled state as this step.
+  void recompile(s.text).then(() => {
+    state.restoring = false;
+    history.replace(snapshot());
+  });
+  historyButtons();
+}
+
+function undoAction(): void {
+  flush();
+  restore(history.undo());
+}
+
+function redoAction(): void {
+  flush();
+  restore(history.redo());
+}
+
+function historyButtons(): void {
+  $<HTMLButtonElement>("undo").disabled = !history.canUndo;
+  $<HTMLButtonElement>("redo").disabled = !history.canRedo;
+}
 
 // ---- server IO ----
 
@@ -160,6 +239,11 @@ async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promi
   draw();
   status();
   saveLayoutSoon();
+
+  if (state.commitPending) {
+    state.commitPending = false;
+    commit();
+  }
 
   if (state.pendingRename && model.nodes.has(state.pendingRename)) {
     const id = state.pendingRename;
@@ -366,6 +450,7 @@ const canvas = new Canvas($("canvas"), {
     relayoutGeometry();
     refreshDiagnostics();
     saveLayoutSoon();
+    commit();
     drawSoon();
   },
   onResize(id, dx, dy, done) {
@@ -396,6 +481,7 @@ const canvas = new Canvas($("canvas"), {
       }
       refreshDiagnostics();
       saveLayoutSoon();
+      commit();
     }
   },
   onEdgeDown(id) {
@@ -494,6 +580,7 @@ function unpin(): void {
   saveLayoutSoon();
   draw();
   status();
+  commit();
 }
 
 function deleteSelection(): void {
@@ -514,15 +601,26 @@ if (doc.layout) {
   state.savedLayout = doc.layout;
 }
 
-const code = createCodeEditor($("code"), doc.text, (text) => {
-  recompileSoon(text);
-  saveTextSoon(text);
+const code = createCodeEditor($("code"), doc.text, {
+  onChange(text, fromCanvas) {
+    recompileSoon(text);
+    saveTextSoon(text);
+    if (fromCanvas) state.commitPending = true;
+    else commitTypingSoon();
+  },
+  onUndo: undoAction,
+  onRedo: redoAction,
 });
 
 setupSplit(document.querySelector<HTMLElement>(".split")!, $("divider"));
 setupZoom(canvas, $("zoom"));
 $("unpin").addEventListener("click", unpin);
-$("reset").addEventListener("click", () => void recompile(code.text(), { reset: "unpinned" }));
+$("reset").addEventListener("click", () => {
+  state.commitPending = true;
+  void recompile(code.text(), { reset: "unpinned" });
+});
+$("undo").addEventListener("click", undoAction);
+$("redo").addEventListener("click", redoAction);
 const canvasEl = $("canvas");
 // The palette floats inside the canvas: its presses must not start a pan, its wheel must scroll it.
 for (const type of ["pointerdown", "wheel"] as const) $("palette").addEventListener(type, (e) => e.stopPropagation());
@@ -531,10 +629,10 @@ canvasEl.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
   if (mod && e.key.toLowerCase() === "z") {
     e.preventDefault();
-    (e.shiftKey ? redo : undo)(code.view);
+    (e.shiftKey ? redoAction : undoAction)();
   } else if (mod && e.key.toLowerCase() === "y") {
     e.preventDefault();
-    redo(code.view);
+    redoAction();
   } else if (e.key === "Delete" || e.key === "Backspace") {
     e.preventDefault();
     deleteSelection();
@@ -550,12 +648,14 @@ events.addEventListener("text", (e) => {
   const { text } = JSON.parse((e as MessageEvent<string>).data) as { text: string };
   state.savedText = text;
   code.setText(text);
+  state.commitPending = true;
   void recompile(text);
 });
 events.addEventListener("layout", (e) => {
   const { layout } = JSON.parse((e as MessageEvent<string>).data) as { layout: string };
   state.savedLayout = layout;
   state.layout = layout ? parseLayoutFile(layout).layout : emptyLayout();
+  state.commitPending = true;
   void recompile(code.text());
 });
 
@@ -566,3 +666,5 @@ hint.textContent =
 canvasEl.appendChild(hint);
 
 await recompile(doc.text);
+history.reset(snapshot());
+historyButtons();

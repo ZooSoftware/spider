@@ -121,7 +121,7 @@ keeps its camera.
 
 ---
 
-## B6 — Undo / redo across code and canvas (high)
+## ✅ B6 — Undo / redo across code and canvas (high)
 
 **Problem:** CodeMirror has undo for typing, but canvas edits (drag, resize, unpin, reset
 layout) cannot be undone, and in Phase 6 canvas edits will also change the code, so the

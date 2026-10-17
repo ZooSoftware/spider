@@ -180,11 +180,11 @@ Router only (`layout/src/router.ts`), verified on the examples and the 100-node 
 
 ### Phase 12 — Unified undo/redo: B6  (medium–hard)
 Editor architecture.
-- [ ] One app-level history of `{ text, layout, selection }` snapshots per user action
+- [x] One app-level history of `{ text, layout, selection }` snapshots per user action
       (drag end, resize, unpin, reset, typing burst, structural edits)
-- [ ] Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y from both panes use it (CodeMirror history bypassed)
-- [ ] Restoring a snapshot writes both files; cap ~200 steps
-- [ ] Tests on the history module; browser check of type → drag → resize → type undo/redo
+- [x] Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y from both panes use it (CodeMirror history bypassed)
+- [x] Restoring a snapshot writes both files; cap ~200 steps
+- [x] Tests on the history module; browser check of type → drag → resize → type undo/redo
 
 ### Phase 13 — Move lines: B4  (hard)
 Needs Phase 11 (router handles manual edges cleanly) and Phase 12 (line edits are undoable).

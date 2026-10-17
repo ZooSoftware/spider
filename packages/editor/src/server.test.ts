@@ -60,3 +60,21 @@ test("pushes external file changes over SSE, but not its own writes", async () =
   expect(got).toContain("# external");
   expect(got.split("event: text").length - 1).toBe(1);
 });
+
+test("rapid saves are never echoed back as external changes", async () => {
+  const res = await fetch(url("/api/events"));
+  const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+  await reader.read(); // ": connected"
+  let got = "";
+  const pump = (async () => {
+    for (let r = await reader.read(); !r.done; r = await reader.read()) got += r.value;
+  })().catch(() => {});
+  for (let i = 0; i < 30; i++) {
+    await fetch(url("/api/layout"), { method: "PUT", body: `{"version":1,"nodes":{"n${i}":{}},"edges":{}}\n` });
+    await Bun.sleep(i % 3 === 0 ? 40 : 5);
+  }
+  await Bun.sleep(1500); // let the 1s poll run
+  await reader.cancel();
+  await pump;
+  expect(got).not.toContain("event: layout");
+});

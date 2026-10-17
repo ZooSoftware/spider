@@ -1,7 +1,8 @@
 // Code pane: CodeMirror 6 with a small stream highlighter for the .spd grammar and inline
 // diagnostics. External text replacements are tagged so they don't trigger a save loop.
 import { basicSetup, EditorView } from "codemirror";
-import { Annotation } from "@codemirror/state";
+import { Annotation, Prec } from "@codemirror/state";
+import { keymap } from "@codemirror/view";
 import { StreamLanguage } from "@codemirror/language";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import type { Diagnostic, Span, TextEdit } from "@spider/core";
@@ -58,6 +59,16 @@ const spd = StreamLanguage.define<LineState>({
 });
 
 const external = Annotation.define<boolean>();
+/** Marks edits applied on behalf of the canvas (they get their own undo step). */
+const fromCanvas = Annotation.define<boolean>();
+
+export interface CodeEditorOptions {
+  /** `canvas` is true for write-back edits from the canvas, false for typing. */
+  onChange(text: string, canvas: boolean): void;
+  /** Undo/redo keys go to the app's history (one history for code and canvas). */
+  onUndo(): void;
+  onRedo(): void;
+}
 
 export interface CodeEditor {
   view: EditorView;
@@ -69,16 +80,39 @@ export interface CodeEditor {
   apply(edits: TextEdit[], userEvent: string): void;
 }
 
-export function createCodeEditor(parent: HTMLElement, text: string, onChange: (text: string) => void): CodeEditor {
+export function createCodeEditor(parent: HTMLElement, text: string, opts: CodeEditorOptions): CodeEditor {
+  const run = (fn: () => void) => (): boolean => {
+    fn();
+    return true;
+  };
   const view = new EditorView({
     parent,
     doc: text,
     extensions: [
+      Prec.highest(
+        keymap.of([
+          { key: "Mod-z", run: run(opts.onUndo), preventDefault: true },
+          { key: "Mod-Shift-z", run: run(opts.onRedo), preventDefault: true },
+          { key: "Mod-y", run: run(opts.onRedo), preventDefault: true },
+        ]),
+      ),
+      // Edit menu / native undo commands arrive as beforeinput, not as key presses.
+      Prec.highest(
+        EditorView.domEventHandlers({
+          beforeinput(e) {
+            if (e.inputType !== "historyUndo" && e.inputType !== "historyRedo") return false;
+            e.preventDefault();
+            (e.inputType === "historyUndo" ? opts.onUndo : opts.onRedo)();
+            return true;
+          },
+        }),
+      ),
       basicSetup,
       spd,
       lintGutter(),
       EditorView.updateListener.of((u) => {
-        if (u.docChanged && !u.transactions.some((t) => t.annotation(external))) onChange(u.state.doc.toString());
+        if (!u.docChanged || u.transactions.some((t) => t.annotation(external))) return;
+        opts.onChange(u.state.doc.toString(), u.transactions.some((t) => t.annotation(fromCanvas)));
       }),
     ],
   });
@@ -110,6 +144,7 @@ export function createCodeEditor(parent: HTMLElement, text: string, onChange: (t
         changes: edits.map((e) => ({ from: e.span.start, to: e.span.end, insert: e.newText })),
         selection: { anchor: cursor },
         userEvent,
+        annotations: fromCanvas.of(true),
         scrollIntoView: true,
       });
     },

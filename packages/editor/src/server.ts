@@ -39,12 +39,16 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
   // Watch events can arrive mid-write, merged, or not at all, so they only schedule a settled
   // re-read; a slow poll is the safety net.
   const writing = { text: 0, layout: 0 };
+  /** Bumped on every save from the browser; a read that overlaps a save is stale. */
+  const version = { text: 0, layout: 0 };
   const check = async (kind: "text" | "layout"): Promise<void> => {
     // Never read our own half-written file and echo it back to the browser.
     if (writing[kind] > 0) return;
+    const v = version[kind];
     const path = kind === "text" ? file : layoutPath;
     const content = existsSync(path) ? await readFile(path, "utf8") : "";
-    if (writing[kind] > 0 || content === known[kind]) return;
+    // A save landed while we were reading: what we read is our own older write, not an edit.
+    if (writing[kind] > 0 || version[kind] !== v || content === known[kind]) return;
     known[kind] = content;
     broadcast(kind, kind === "text" ? { text: content } : { layout: content });
   };
@@ -75,6 +79,7 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
         PUT: async (req) => {
           const text = await req.text();
           if (text !== known.text) {
+            version.text++;
             known.text = text;
             writing.text++;
             await writeFile(file, text).finally(() => writing.text--);
@@ -86,6 +91,7 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
         PUT: async (req) => {
           const layout = await req.text();
           if (layout !== known.layout) {
+            version.layout++;
             known.layout = layout;
             writing.layout++;
             await writeFile(layoutPath, layout).finally(() => writing.layout--);
