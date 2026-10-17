@@ -135,3 +135,53 @@ of typing = one undo step.
 
 **Done when:** a sequence of type → drag → resize → type can be undone step by step and
 redone, with files on disk matching each step.
+
+---
+
+## B7 — Zoom slider (low)
+
+**Problem:** wheel zoom steps feel too big or too small, and there is no way to see or set
+the current zoom level.
+
+**Expected:** a zoom control in the canvas corner: slider (e.g. 10%–400%), current
+percentage, `−` / `+` buttons, "100%" and "Fit". Wheel zoom stays, with a gentler step.
+
+**Approach ideas:** zoom = canvas pixel width / camera width; the slider sets the camera
+width around the view center; keep it in sync when wheel-zooming. Optional: remember zoom
+per file in `localStorage`.
+
+**Done when:** slider and wheel stay in sync; 100% shows diagram units 1:1 on screen.
+
+---
+
+## B8 — Container boundaries cover nodes that are not inside them (high, bug)
+
+**Problem:** a container (e.g. "Production VPC") can end up drawn over nodes that are not
+its children, so they look like they are inside the boundary when they are not.
+
+**Causes found** (`layout/src/geometry.ts` `fitContainers`, `layout/src/layout.ts`):
+1. A **pinned container only grows, never shrinks**: once a container has been dragged
+   (and so pinned), moving its children back leaves it oversized.
+2. Fitting a container to its children **ignores non-member nodes**: when a child is
+   dragged far out, the container grows over unrelated nodes and nothing resolves the
+   overlap (existing nodes never move).
+3. Containers have **no resize handle**, so the user can't fix it by hand.
+4. Dragging a node visually into a container doesn't make it a child (membership is code,
+   see Phase 6).
+
+**Expected:** a container's box always reflects its real children: it fits its content
+automatically, and never covers a node that is not inside it.
+
+**Approach ideas:**
+- Always fit containers exactly to their children (drop "pinned only grows"); dragging a
+  container just moves its subtree.
+- Optional manual size: a container resize handle stores a *minimum* size (the box is
+  `max(fit, min size)`), never smaller than its content.
+- After a user action, if a container overlaps a non-member node: move unpinned non-member
+  nodes out to the nearest free spot; for pinned ones, show a warning outline instead of
+  moving them.
+- Phase 6: dropping a node onto a container offers to move it into that container's block
+  in the code (and dragging it out moves it out).
+
+**Done when:** layout test: after any drag/resize sequence, no non-member node box
+intersects a container box; a container shrinks back when its children move closer.
