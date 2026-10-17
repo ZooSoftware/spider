@@ -1,12 +1,24 @@
 // Canvas pane: shows the rendered SVG, owns the camera (pan/zoom via viewBox) and turns pointer
-// input into node drag / resize / select gestures in diagram coordinates.
+// input into gestures in diagram coordinates: select, drag/resize nodes, connect, rename, drop.
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export type Target = { type: "node"; id: string } | { type: "edge"; id: string };
 
 export interface CanvasHandlers {
-  /** Pointer down on a node; return false to ignore the gesture. */
   onNodeDown(id: string): void;
-  onNodeDrag(id: string, dx: number, dy: number): void;
-  onNodeUp(id: string, moved: boolean): void;
+  onNodeDrag(id: string, dx: number, dy: number, pointer: Point): void;
+  onNodeUp(id: string, moved: boolean, pointer: Point): void;
   onResize(id: string, dx: number, dy: number, done: boolean): void;
+  onEdgeDown(id: string): void;
+  /** Dragging from a node's connect handle; `over` is the node under the pointer. */
+  onConnect(from: string, pointer: Point, over: string | undefined, done: boolean): void;
+  onDoubleClick(target: Target): void;
+  /** A palette kind dropped on the canvas. */
+  onDropKind(kind: string, pointer: Point): void;
   onBackground(): void;
 }
 
@@ -18,12 +30,16 @@ interface Box {
 }
 
 const DRAG_THRESHOLD = 3;
+export const PALETTE_MIME = "application/x-spider-kind";
 
 export class Canvas {
   private camera: Box | undefined;
   private content: Box = { x: 0, y: 0, w: 100, h: 100 };
   private svg: SVGSVGElement | undefined;
   private readonly stage: HTMLElement;
+  /** Last primary press, for double-click detection (the SVG is re-rendered between clicks,
+   *  so the native dblclick event, which needs the same element twice, never fires). */
+  private lastPress: { key: string; time: number; x: number; y: number } | undefined;
 
   constructor(
     private readonly el: HTMLElement,
@@ -34,6 +50,18 @@ export class Canvas {
     el.prepend(this.stage);
     el.addEventListener("pointerdown", (e) => this.down(e));
     el.addEventListener("wheel", (e) => this.wheel(e), { passive: false });
+    el.addEventListener("dragover", (e) => {
+      if (e.dataTransfer?.types.includes(PALETTE_MIME)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }
+    });
+    el.addEventListener("drop", (e) => {
+      const kind = e.dataTransfer?.getData(PALETTE_MIME);
+      if (!kind) return;
+      e.preventDefault();
+      handlers.onDropKind(kind, this.toDiagram(e.clientX, e.clientY));
+    });
   }
 
   show(svgMarkup: string): void {
@@ -61,11 +89,37 @@ export class Canvas {
   }
 
   /** Screen → diagram coordinates. */
-  private toDiagram(clientX: number, clientY: number): { x: number; y: number } {
+  toDiagram(clientX: number, clientY: number): Point {
     const ctm = this.svg?.getScreenCTM();
     if (!this.svg || !ctm) return { x: clientX, y: clientY };
     const p = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
     return { x: p.x, y: p.y };
+  }
+
+  /** Diagram box → screen rect relative to the canvas element. */
+  toScreenRect(b: Box): Box {
+    const ctm = this.svg?.getScreenCTM();
+    const host = this.el.getBoundingClientRect();
+    if (!ctm) return b;
+    const p = new DOMPoint(b.x, b.y).matrixTransform(ctm);
+    return { x: p.x - host.left, y: p.y - host.top, w: b.w * ctm.a, h: b.h * ctm.d };
+  }
+
+  private targetAt(t: EventTarget | null): Target | undefined {
+    const el = t instanceof Element ? t : null;
+    const edge = el?.closest<SVGElement>(".spd-edge, .spd-edge-label");
+    if (edge?.dataset.id) return { type: "edge", id: edge.dataset.id };
+    const node = el?.closest<SVGElement>(".spd-node");
+    if (node?.dataset.id) return { type: "node", id: node.dataset.id };
+    return undefined;
+  }
+
+  private nodeUnder(clientX: number, clientY: number): string | undefined {
+    for (const el of document.elementsFromPoint(clientX, clientY)) {
+      const node = el.closest<SVGElement>(".spd-node");
+      if (node?.dataset.id) return node.dataset.id;
+    }
+    return undefined;
   }
 
   private wheel(e: WheelEvent): void {
@@ -82,9 +136,22 @@ export class Canvas {
 
   private down(e: PointerEvent): void {
     if (e.button !== 0 && e.button !== 1) return;
-    const target = e.target instanceof Element ? e.target : null;
-    const handle = target?.closest<SVGElement>(".spd-handle");
-    const node = target?.closest<SVGElement>(".spd-node");
+    const el = e.target instanceof Element ? e.target : null;
+    const handle = el?.closest<SVGElement>(".spd-handle");
+    const connect = el?.closest<SVGElement>(".spd-connect");
+    const target = this.targetAt(e.target);
+    if (e.button === 0 && target) {
+      const key = `${target.type}:${target.id}`;
+      const last = this.lastPress;
+      const now = performance.now();
+      this.lastPress = { key, time: now, x: e.clientX, y: e.clientY };
+      if (last && last.key === key && now - last.time < 400 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 6) {
+        this.lastPress = undefined;
+        e.preventDefault();
+        this.handlers.onDoubleClick(target);
+        return;
+      }
+    }
     const start = this.toDiagram(e.clientX, e.clientY);
     const startScreen = { x: e.clientX, y: e.clientY };
     let moved = false;
@@ -93,29 +160,37 @@ export class Canvas {
     let move: (ev: PointerEvent) => void;
     let up: (ev: PointerEvent) => void;
 
-    if (e.button === 0 && handle?.dataset.id) {
+    if (e.button === 0 && connect?.dataset.id) {
+      const from = connect.dataset.id;
+      const at = (ev: PointerEvent, done: boolean): void =>
+        this.handlers.onConnect(from, this.toDiagram(ev.clientX, ev.clientY), this.nodeUnder(ev.clientX, ev.clientY), done);
+      move = (ev) => at(ev, false);
+      up = (ev) => at(ev, true);
+    } else if (e.button === 0 && handle?.dataset.id) {
       const id = handle.dataset.id;
-      move = (ev) => {
+      const at = (ev: PointerEvent, done: boolean): void => {
         const p = this.toDiagram(ev.clientX, ev.clientY);
-        this.handlers.onResize(id, p.x - start.x, p.y - start.y, false);
+        this.handlers.onResize(id, p.x - start.x, p.y - start.y, done);
       };
-      up = (ev) => {
-        const p = this.toDiagram(ev.clientX, ev.clientY);
-        this.handlers.onResize(id, p.x - start.x, p.y - start.y, true);
-      };
-    } else if (e.button === 0 && node?.dataset.id && !e.shiftKey) {
-      const id = node.dataset.id;
+      move = (ev) => at(ev, false);
+      up = (ev) => at(ev, true);
+    } else if (e.button === 0 && target?.type === "edge") {
+      this.handlers.onEdgeDown(target.id);
+      move = () => {};
+      up = () => {};
+    } else if (e.button === 0 && target?.type === "node" && !e.shiftKey) {
+      const id = target.id;
       this.handlers.onNodeDown(id);
       this.el.classList.add("dragging");
       move = (ev) => {
         if (!moved && Math.hypot(ev.clientX - startScreen.x, ev.clientY - startScreen.y) < DRAG_THRESHOLD) return;
         moved = true;
         const p = this.toDiagram(ev.clientX, ev.clientY);
-        this.handlers.onNodeDrag(id, p.x - start.x, p.y - start.y);
+        this.handlers.onNodeDrag(id, p.x - start.x, p.y - start.y, p);
       };
-      up = () => {
+      up = (ev) => {
         this.el.classList.remove("dragging");
-        this.handlers.onNodeUp(id, moved);
+        this.handlers.onNodeUp(id, moved, this.toDiagram(ev.clientX, ev.clientY));
       };
     } else {
       // Pan: keep the grabbed diagram point under the cursor.

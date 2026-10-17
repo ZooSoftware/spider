@@ -52,3 +52,29 @@ button:disabled { opacity: 0.45; cursor: default; }
   position: absolute; left: 12px; bottom: 10px; color: var(--muted); font-size: 12px;
   background: rgba(255, 255, 255, 0.85); padding: 2px 6px; border-radius: 4px; pointer-events: none;
 }
+
+.canvas .spd-drop { fill: rgba(37, 99, 235, 0.06); stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+.canvas .spd-sel-edge { fill: none; stroke: var(--accent); stroke-width: 4; stroke-opacity: 0.35; stroke-linejoin: round; pointer-events: none; }
+.canvas .spd-connect { cursor: crosshair; }
+.canvas .spd-connect circle { fill: #fff; stroke: var(--accent); stroke-width: 1.5; }
+.canvas .spd-connect path { stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
+.canvas .spd-preview { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; pointer-events: none; }
+.canvas .spd-edge { cursor: pointer; }
+.palette {
+  position: absolute; top: 10px; left: 10px; z-index: 2; width: 132px;
+  max-height: calc(100% - 50px); overflow: auto;
+  background: rgba(255, 255, 255, 0.95); border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+.pal-title { color: var(--muted); font-size: 11px; padding: 2px 4px 6px; }
+.pal-item {
+  display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px;
+  cursor: grab; user-select: none; color: var(--text);
+}
+.pal-item:hover { background: #eff6ff; color: var(--accent); }
+.pal-icon { width: 16px; height: 16px; display: inline-flex; color: var(--muted); }
+.pal-icon svg { width: 16px; height: 16px; }
+.rename {
+  position: absolute; z-index: 3; height: 30px; padding: 0 8px; font: inherit; text-align: center;
+  border: 1.5px solid var(--accent); border-radius: 6px; outline: none; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+}

@@ -1,8 +1,22 @@
 // Editor app: keeps code and canvas in sync.
 //  code → canvas: parse, validate, incremental layout, render (debounced as you type).
-//  canvas → layout: drag / resize / unpin / reset only touch the layout sidecar, never the code.
-import { parseModel, type Diagnostic, type Model, type UseDecl } from "@spider/core";
-import type { ResolvedProfile } from "@spider/profile-schema";
+//  canvas → layout: drag / resize / unpin / reset only touch the layout sidecar.
+//  canvas → code: connect, delete, rename, add from palette and move into/out of containers
+//  become targeted text edits applied through the code editor (so they are undoable).
+import {
+  addEdge,
+  addNode,
+  deleteElements,
+  edgeId,
+  moveNode,
+  parseModel,
+  setLabel,
+  type Diagnostic,
+  type Model,
+  type TextEdit,
+  type UseDecl,
+} from "@spider/core";
+import { DEFAULT_NODE_SIZE, type ResolvedProfile } from "@spider/profile-schema";
 import { validate } from "@spider/profiles/validate";
 import {
   emptyLayout,
@@ -15,7 +29,8 @@ import {
   type NodeLayout,
 } from "@spider/layout";
 import { renderSvg } from "@spider/render/render";
-import { Canvas } from "./canvas.ts";
+import { redo, undo } from "@codemirror/commands";
+import { Canvas, PALETTE_MIME, type Point, type Target } from "./canvas.ts";
 import { createCodeEditor } from "./code.ts";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -32,7 +47,13 @@ const state = {
   profile: undefined as ProfileCache | undefined,
   layout: emptyLayout(),
   diagnostics: [] as Diagnostic[],
-  selected: undefined as string | undefined,
+  selected: undefined as Target | undefined,
+  /** Container highlighted as drop target while dragging a node. */
+  dropTarget: undefined as string | undefined,
+  /** Connection being drawn from a node's connect handle. */
+  connect: undefined as { from: string; pointer: Point; over: string | undefined } | undefined,
+  /** Node to open the label editor for once it exists (after adding from the palette). */
+  pendingRename: undefined as string | undefined,
   /** Positions of nodes that disappeared from the code this session (e.g. an id mid-edit). */
   memory: new Map<string, NodeLayout>(),
   savedLayout: "",
@@ -121,42 +142,87 @@ async function recompile(text: string, opts: { reset?: "unpinned" } = {}): Promi
   for (const [id, n] of Object.entries(state.layout.nodes)) if (!layout.nodes[id]) state.memory.set(id, n);
   for (const id of model.nodes.keys()) state.memory.delete(id);
 
+  const profileChanged = state.profile?.key !== cache.key;
   state.model = model;
   state.profile = cache;
   state.layout = layout;
-  if (state.selected && !model.nodes.has(state.selected)) select(undefined);
+  const sel = state.selected;
+  if (sel && !(sel.type === "node" ? model.nodes.has(sel.id) : model.edges.has(sel.id))) state.selected = undefined;
   state.diagnostics = [...diagnostics, ...remapProfileDiagnostics(cache, model.uses), ...validate(model, cache.profile)];
   code.setDiagnostics(state.diagnostics);
+  if (profileChanged) renderPalette();
   draw();
   status();
   saveLayoutSoon();
+
+  if (state.pendingRename && model.nodes.has(state.pendingRename)) {
+    const id = state.pendingRename;
+    state.pendingRename = undefined;
+    openRename({ type: "node", id });
+  }
 }
 
 const recompileSoon = debounce((text: string) => void recompile(text), 150);
+
+/** Apply write-back edits computed from the current code text. */
+function edit(make: (text: string) => TextEdit[], userEvent: string): boolean {
+  try {
+    const edits = make(code.text());
+    code.apply(edits, userEvent);
+    return edits.length > 0;
+  } catch (err) {
+    console.warn("[spider] edit failed:", err);
+    return false;
+  }
+}
 
 // ---- drawing ----
 
 let frame = 0;
 function drawSoon(): void {
-  if (!frame) frame = requestAnimationFrame(() => {
-    frame = 0;
-    draw();
-  });
+  if (!frame)
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      draw();
+    });
 }
 
 function draw(): void {
   if (!state.model || !state.profile) return;
-  const svg = renderSvg(state.model, state.profile.profile, state.layout);
+  const svg = renderSvg(state.model, state.profile.profile, state.layout, { interactive: true });
   canvas.show(svg.replace(/<\/svg>\s*$/, `${overlay()}</svg>`));
 }
 
+const box = (n: NodeLayout, pad: number, cls: string): string =>
+  `<rect class="${cls}" x="${n.x - pad}" y="${n.y - pad}" width="${n.w + 2 * pad}" height="${n.h + 2 * pad}" rx="6"/>`;
+
 function overlay(): string {
   const parts: string[] = [];
-  for (const [id, n] of Object.entries(state.layout.nodes)) {
+  const nodes = state.layout.nodes;
+  for (const n of Object.values(nodes)) {
     if (n.pinned) parts.push(`<circle class="spd-pin" cx="${n.x + n.w - 1}" cy="${n.y + 1}" r="3.5"><title>pinned</title></circle>`);
-    if (id !== state.selected) continue;
-    parts.push(`<rect class="spd-sel" x="${n.x - 4}" y="${n.y - 4}" width="${n.w + 8}" height="${n.h + 8}" rx="6"/>`);
-    if (!isContainer(id)) parts.push(`<rect class="spd-handle" data-id="${id}" x="${n.x + n.w - 1}" y="${n.y + n.h - 1}" width="9" height="9" rx="2"/>`);
+  }
+  const drop = state.dropTarget ? nodes[state.dropTarget] : undefined;
+  if (drop) parts.push(box(drop, 3, "spd-drop"));
+  const sel = state.selected;
+  if (sel?.type === "edge") {
+    const pts = state.layout.edges[sel.id]?.points ?? [];
+    if (pts.length) parts.push(`<polyline class="spd-sel-edge" points="${pts.map((p) => p.join(",")).join(" ")}"/>`);
+  } else if (sel?.type === "node" && nodes[sel.id]) {
+    const n = nodes[sel.id]!;
+    parts.push(box(n, 4, "spd-sel"));
+    if (!isContainer(sel.id)) parts.push(`<rect class="spd-handle" data-id="${sel.id}" x="${n.x + n.w - 1}" y="${n.y + n.h - 1}" width="9" height="9" rx="2"/>`);
+    if (!state.connect) {
+      parts.push(
+        `<g class="spd-connect" data-id="${sel.id}"><title>drag to connect</title><circle cx="${n.x + n.w + 14}" cy="${n.y + n.h / 2}" r="7"/><path d="M${n.x + n.w + 10} ${n.y + n.h / 2}h8M${n.x + n.w + 14} ${n.y + n.h / 2 - 4}v8"/></g>`,
+      );
+    }
+  }
+  const c = state.connect;
+  if (c && nodes[c.from]) {
+    const s = nodes[c.from]!;
+    if (c.over && c.over !== c.from && nodes[c.over]) parts.push(box(nodes[c.over]!, 3, "spd-drop"));
+    parts.push(`<line class="spd-preview" x1="${s.x + s.w / 2}" y1="${s.y + s.h / 2}" x2="${c.pointer.x}" y2="${c.pointer.y}"/>`);
   }
   return `<g class="spd-overlay">${parts.join("")}</g>`;
 }
@@ -169,16 +235,44 @@ function status(): void {
     .join(" · ");
   $("status").innerHTML = `${counts || "no problems"} · ${state.saving ? "saving…" : "saved"}`;
   const unpin = $<HTMLButtonElement>("unpin");
+  const selNode = state.selected?.type === "node" ? state.selected.id : undefined;
   const anyPinned = Object.values(state.layout.nodes).some((n) => n.pinned);
-  unpin.textContent = state.selected ? "Unpin" : "Unpin all";
-  unpin.disabled = state.selected ? !state.layout.nodes[state.selected]?.pinned : !anyPinned;
+  unpin.textContent = selNode ? "Unpin" : "Unpin all";
+  unpin.disabled = selNode ? !state.layout.nodes[selNode]?.pinned : !anyPinned;
 }
 
-// ---- canvas → layout ----
+// ---- palette ----
+
+function renderPalette(): void {
+  const el = $("palette");
+  const kinds = Object.values(state.profile?.profile.nodes ?? {});
+  el.hidden = kinds.length === 0;
+  el.innerHTML = `<div class="pal-title">Drag to add</div>`;
+  for (const k of kinds) {
+    const item = document.createElement("div");
+    item.className = "pal-item";
+    item.draggable = true;
+    item.title = k.description ?? k.kind;
+    item.innerHTML = `<span class="pal-icon">${k.iconSvg ?? ""}</span><span>${k.kind}</span>`;
+    item.addEventListener("dragstart", (e) => {
+      e.dataTransfer?.setData(PALETTE_MIME, k.kind);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
+    });
+    el.appendChild(item);
+  }
+}
+
+// ---- canvas → layout / code ----
 
 function isContainer(id: string): boolean {
   const n = state.model?.nodes.get(id);
   return !!n && (n.isContainer || n.children.length > 0);
+}
+
+/** Containers (or container kinds) can receive dropped nodes. */
+function acceptsChildren(id: string): boolean {
+  const n = state.model?.nodes.get(id);
+  return !!n && (isContainer(id) || state.profile?.profile.nodes[n.kind]?.container === true);
 }
 
 function subtree(id: string): string[] {
@@ -187,52 +281,77 @@ function subtree(id: string): string[] {
   return out;
 }
 
-function relayoutGeometry(): void {
+/** Innermost container whose box contains `p`, ignoring `exclude`. */
+function containerAt(p: Point, exclude: Set<string> = new Set()): string | undefined {
+  let best: string | undefined;
+  let bestArea = Infinity;
+  for (const [id, n] of Object.entries(state.layout.nodes)) {
+    if (exclude.has(id) || !acceptsChildren(id)) continue;
+    if (p.x < n.x || p.x > n.x + n.w || p.y < n.y || p.y > n.y + n.h) continue;
+    if (n.w * n.h < bestArea) {
+      best = id;
+      bestArea = n.w * n.h;
+    }
+  }
+  return best;
+}
+
+function relayoutGeometry(fit = true): void {
   if (!state.model || !state.profile) return;
-  fitContainers(state.model, state.profile.profile, state.layout.nodes);
+  if (fit) fitContainers(state.model, state.profile.profile, state.layout.nodes);
   state.layout.edges = routeEdges(state.model, state.profile.profile, state.layout.nodes, state.layout.edges);
 }
 
-function select(id: string | undefined): void {
-  state.selected = id;
+function select(t: Target | undefined): void {
+  state.selected = t;
   status();
+  drawSoon();
 }
 
-let drag: { ids: string[]; orig: Map<string, NodeLayout> } | undefined;
+let drag: { ids: string[]; exclude: Set<string>; orig: Map<string, NodeLayout> } | undefined;
 
 const canvas = new Canvas($("canvas"), {
   onNodeDown(id) {
-    select(id);
+    select({ type: "node", id });
     const ids = subtree(id).filter((i) => state.layout.nodes[i]);
-    drag = { ids, orig: new Map(ids.map((i) => [i, { ...state.layout.nodes[i]! }])) };
-    drawSoon();
+    drag = { ids, exclude: new Set(ids), orig: new Map(ids.map((i) => [i, { ...state.layout.nodes[i]! }])) };
   },
-  onNodeDrag(_id, dx, dy) {
+  onNodeDrag(_id, dx, dy, pointer) {
     if (!drag) return;
     for (const i of drag.ids) {
       const o = drag.orig.get(i)!;
       state.layout.nodes[i] = { ...o, x: Math.round(o.x + dx), y: Math.round(o.y + dy) };
     }
-    relayoutGeometry();
+    // Containers keep their size while dragging so a node can be dragged out of one.
+    relayoutGeometry(false);
+    state.dropTarget = containerAt(pointer, drag.exclude);
     drawSoon();
   },
-  onNodeUp(id, moved) {
+  onNodeUp(id, moved, pointer) {
+    const exclude = drag?.exclude ?? new Set([id]);
     drag = undefined;
-    if (moved) {
-      const n = state.layout.nodes[id];
-      if (n) n.pinned = true;
-      saveLayoutSoon();
-    } else {
+    state.dropTarget = undefined;
+    if (!moved) {
       const span = state.model?.nodes.get(id)?.span;
       if (span) code.reveal(span);
+      drawSoon();
+      return;
     }
+    const n = state.layout.nodes[id];
+    if (n) n.pinned = true;
+    const target = containerAt(pointer, exclude);
+    const parent = state.model?.nodes.get(id)?.parent;
+    // Dropped into another container (or out to the top level): membership is code.
+    if (target !== parent && edit((text) => moveNode(text, id, target), "move.spider")) return;
+    relayoutGeometry();
+    saveLayoutSoon();
     drawSoon();
     status();
   },
   onResize(id, dx, dy, done) {
     const n = state.layout.nodes[id];
     if (!n) return;
-    drag ??= { ids: [id], orig: new Map([[id, { ...n }]]) };
+    drag ??= { ids: [id], exclude: new Set([id]), orig: new Map([[id, { ...n }]]) };
     const o = drag.orig.get(id)!;
     state.layout.nodes[id] = { ...o, w: Math.max(40, Math.round(o.w + dx)), h: Math.max(30, Math.round(o.h + dy)), pinned: true };
     relayoutGeometry();
@@ -242,14 +361,95 @@ const canvas = new Canvas($("canvas"), {
       saveLayoutSoon();
     }
   },
+  onEdgeDown(id) {
+    select({ type: "edge", id });
+    const span = state.model?.edges.get(id)?.span;
+    if (span) code.reveal(span);
+  },
+  onConnect(from, pointer, over, done) {
+    state.connect = done ? undefined : { from, pointer, over };
+    if (done && over && over !== from && state.model) {
+      const ordinal = [...state.model.edges.values()].filter((e) => e.source === from && e.target === over).length + 1;
+      if (edit((text) => addEdge(text, from, over), "input.spider.connect")) state.selected = { type: "edge", id: edgeId(from, over, ordinal) };
+    }
+    drawSoon();
+  },
+  onDoubleClick(target) {
+    // Next tick: the canvas takes focus on this same pointerdown, which would blur the input.
+    setTimeout(() => openRename(target), 0);
+  },
+  onDropKind(kind, p) {
+    const parent = containerAt(p);
+    const def = state.profile?.profile.nodes[kind];
+    const [w, h] = def?.size ?? DEFAULT_NODE_SIZE;
+    let id: string | undefined;
+    const ok = edit((text) => {
+      const r = addNode(text, { kind, label: `New ${kind.replace(/^.*\./, "")}`, parent });
+      id = r.id;
+      return r.edits;
+    }, "input.spider.add");
+    if (!ok || !id) return;
+    state.layout.nodes[id] = { x: Math.round(p.x - w / 2), y: Math.round(p.y - h / 2), w, h, pinned: true };
+    state.selected = { type: "node", id };
+    state.pendingRename = id;
+  },
   onBackground() {
     select(undefined);
-    drawSoon();
   },
 });
 
+// ---- inline label editor ----
+
+function openRename(target: Target): void {
+  const model = state.model;
+  if (!model) return;
+  let current: string | undefined;
+  let rect: { x: number; y: number; w: number; h: number } | undefined;
+  if (target.type === "node") {
+    current = model.nodes.get(target.id)?.label ?? "";
+    const n = state.layout.nodes[target.id];
+    if (n) rect = canvas.toScreenRect(isContainer(target.id) ? { x: n.x, y: n.y, w: n.w, h: 36 } : n);
+  } else {
+    current = model.edges.get(target.id)?.label ?? "";
+    const el = state.layout.edges[target.id];
+    const pts = el?.points ?? [];
+    const [x, y] = el?.labelPos ?? pts[Math.floor(pts.length / 2)] ?? [0, 0];
+    rect = canvas.toScreenRect({ x: x - 70, y: y - 14, w: 140, h: 28 });
+  }
+  if (!rect) return;
+  document.querySelector(".rename")?.remove();
+  const input = document.createElement("input");
+  input.className = "rename";
+  input.value = current;
+  input.placeholder = target.type === "edge" ? "edge label" : "label";
+  const w = Math.max(rect.w, 140);
+  Object.assign(input.style, { left: `${rect.x + rect.w / 2 - w / 2}px`, top: `${rect.y + rect.h / 2 - 15}px`, width: `${w}px` });
+  $("canvas").appendChild(input);
+  input.focus();
+  input.select();
+  let closed = false;
+  const close = (commit: boolean): void => {
+    if (closed) return;
+    closed = true;
+    input.remove();
+    $("canvas").focus();
+    if (commit && input.value !== current) {
+      const t = target.type === "node" ? { node: target.id } : { edge: target.id };
+      edit((text) => setLabel(text, t, input.value), "input.spider.rename");
+    }
+  };
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") close(true);
+    else if (e.key === "Escape") close(false);
+  });
+  input.addEventListener("blur", () => close(true));
+  input.addEventListener("pointerdown", (e) => e.stopPropagation());
+}
+
 function unpin(): void {
-  const ids = state.selected ? [state.selected] : Object.keys(state.layout.nodes);
+  const selNode = state.selected?.type === "node" ? state.selected.id : undefined;
+  const ids = selNode ? [selNode] : Object.keys(state.layout.nodes);
   for (const id of ids) {
     const n = state.layout.nodes[id];
     if (n) delete n.pinned;
@@ -257,6 +457,13 @@ function unpin(): void {
   saveLayoutSoon();
   draw();
   status();
+}
+
+function deleteSelection(): void {
+  const sel = state.selected;
+  if (!sel) return;
+  const targets = sel.type === "node" ? { nodes: [sel.id] } : { edges: [sel.id] };
+  if (edit((text) => deleteElements(text, targets), "delete.spider")) select(undefined);
 }
 
 // ---- boot ----
@@ -278,13 +485,25 @@ const code = createCodeEditor($("code"), doc.text, (text) => {
 $("fit").addEventListener("click", () => canvas.fit());
 $("unpin").addEventListener("click", unpin);
 $("reset").addEventListener("click", () => void recompile(code.text(), { reset: "unpinned" }));
-$("canvas").addEventListener("keydown", (e) => {
-  if (e.key === "f") canvas.fit();
+const canvasEl = $("canvas");
+// The palette floats inside the canvas: its presses must not start a pan, its wheel must scroll it.
+for (const type of ["pointerdown", "wheel"] as const) $("palette").addEventListener(type, (e) => e.stopPropagation());
+canvasEl.addEventListener("pointerdown", () => canvasEl.focus());
+canvasEl.addEventListener("keydown", (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === "z") {
+    e.preventDefault();
+    (e.shiftKey ? redo : undo)(code.view);
+  } else if (mod && e.key.toLowerCase() === "y") {
+    e.preventDefault();
+    redo(code.view);
+  } else if (e.key === "Delete" || e.key === "Backspace") {
+    e.preventDefault();
+    deleteSelection();
+  } else if (e.key === "F2" && state.selected) openRename(state.selected);
+  else if (e.key === "f") canvas.fit();
   else if (e.key === "u") unpin();
-  else if (e.key === "Escape") {
-    select(undefined);
-    draw();
-  }
+  else if (e.key === "Escape") select(undefined);
 });
 
 const events = new EventSource("/api/events");
@@ -303,7 +522,8 @@ events.addEventListener("layout", (e) => {
 
 const hint = document.createElement("div");
 hint.className = "hint";
-hint.textContent = "drag nodes to pin · drag background to pan · wheel to zoom · F fit · U unpin";
-$("canvas").appendChild(hint);
+hint.textContent =
+  "drag: move/pin · drop on a box: move inside · ⊕ handle: connect · double-click/F2: rename · Del: delete · Ctrl+Z: undo · F: fit";
+canvasEl.appendChild(hint);
 
 await recompile(doc.text);

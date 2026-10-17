@@ -9,6 +9,8 @@ import { embedIcon, esc, n, textWidth, wrap } from "./svg.ts";
 export interface RenderOptions {
   /** Space around the drawing. */
   padding?: number;
+  /** Add invisible wide strokes on edges for hit testing (editor canvas). */
+  interactive?: boolean;
 }
 
 const DEFAULT_THEME: Required<Theme> = {
@@ -33,11 +35,12 @@ interface Ctx {
   layout: LayoutFile;
   theme: Required<Theme>;
   markers: Map<string, string>;
+  interactive: boolean;
 }
 
 export function renderSvg(model: Model, profile: ResolvedProfile, layout: LayoutFile, opts: RenderOptions = {}): string {
   const theme = { ...DEFAULT_THEME, ...profile.theme } as Required<Theme>;
-  const ctx: Ctx = { model, profile, layout, theme, markers: new Map() };
+  const ctx: Ctx = { model, profile, layout, theme, markers: new Map(), interactive: opts.interactive ?? false };
   const pad = opts.padding ?? 24;
 
   const containers: string[] = [];
@@ -194,7 +197,8 @@ function renderEdge(ctx: Ctx, edge: ModelEdge): string {
     st.arrow === "end" || st.arrow === "both" ? `marker-end="${marker(ctx, st.color, false)}"` : "",
     st.arrow === "start" || st.arrow === "both" ? `marker-start="${marker(ctx, st.color, true)}"` : "",
   ].filter(Boolean);
-  return `<g class="spd-edge" data-id="${esc(edge.id)}"><path ${attrs.join(" ")}/></g>`;
+  const hit = ctx.interactive ? `<path class="spd-hit" d="${roundedPath(pts, CORNER)}" fill="none" stroke="transparent" stroke-width="12"/>` : "";
+  return `<g class="spd-edge" data-id="${esc(edge.id)}"><path ${attrs.join(" ")}/>${hit}</g>`;
 }
 
 /** Endpoints are routed to box boundaries; pull them onto non-rectangular outlines. */

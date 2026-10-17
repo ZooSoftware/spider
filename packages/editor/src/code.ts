@@ -4,7 +4,7 @@ import { basicSetup, EditorView } from "codemirror";
 import { Annotation } from "@codemirror/state";
 import { StreamLanguage } from "@codemirror/language";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
-import type { Diagnostic, Span } from "@spider/core";
+import type { Diagnostic, Span, TextEdit } from "@spider/core";
 
 interface LineState {
   first: boolean;
@@ -65,6 +65,8 @@ export interface CodeEditor {
   setText(text: string): void;
   setDiagnostics(diags: Diagnostic[]): void;
   reveal(span: Span): void;
+  /** Apply write-back edits as a normal user edit: saved, re-compiled and undoable (Ctrl+Z). */
+  apply(edits: TextEdit[], userEvent: string): void;
 }
 
 export function createCodeEditor(parent: HTMLElement, text: string, onChange: (text: string) => void): CodeEditor {
@@ -98,6 +100,18 @@ export function createCodeEditor(parent: HTMLElement, text: string, onChange: (t
           }),
         ),
       );
+    },
+    apply(edits, userEvent) {
+      if (edits.length === 0) return;
+      // Put the cursor at the first change so the user sees what the canvas edit did.
+      const first = [...edits].sort((a, b) => a.span.start - b.span.start)[0]!;
+      const cursor = first.span.start + first.newText.replace(/\s+$/, "").length;
+      view.dispatch({
+        changes: edits.map((e) => ({ from: e.span.start, to: e.span.end, insert: e.newText })),
+        selection: { anchor: cursor },
+        userEvent,
+        scrollIntoView: true,
+      });
     },
     reveal(span) {
       view.dispatch({ selection: { anchor: clamp(span.start), head: clamp(span.end) }, scrollIntoView: true });

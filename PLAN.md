@@ -114,11 +114,22 @@ reload, and confirm positions persist and the code is untouched.
 
 ## Phase 6 — Editor: structural write-back  ⭐ Review milestone 3
 
-- [ ] Draw a connection between two nodes → inserts `a -> b` into the code
-- [ ] Delete a node/edge → removes its lines (and its edges' lines) from the code
-- [ ] Edit a label inline → updates the string in the code
-- [ ] Add a node from a profile palette → inserts `kind id "Label"` (in its container if dropped in one)
-- [ ] All edits are targeted syntax-tree edits; round-trip tests for each operation
+- [x] Draw a connection between two nodes → inserts `a -> b` into the code
+- [x] Delete a node/edge → removes its lines (and its edges' lines) from the code
+- [x] Edit a label inline → updates the string in the code
+- [x] Add a node from a profile palette → inserts `kind id "Label"` (in its container if dropped in one)
+- [x] All edits are targeted syntax-tree edits; round-trip tests for each operation
+
+- [x] Move a node into / out of a container by dragging it onto a box (membership is code)
+- [x] Canvas Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y route to the code editor's history
+
+Implementation notes:
+- `core/src/writeback.ts`: `addEdge`, `addNode`, `deleteElements`, `setLabel`, `moveNode` take
+  the current source and return `TextEdit[]`; property-tested over all examples.
+- The editor applies them as normal CodeMirror transactions → they appear in the code pane,
+  are saved, and are undoable (code history only; layout-only undo is backlog B6).
+- Removing a statement between two blank lines also removes one blank line.
+- While dragging, containers keep their size so a node can be dragged out of one.
 
 **You review:** do structural edits on the canvas, then check the code diff:
 comments and formatting should be intact.
