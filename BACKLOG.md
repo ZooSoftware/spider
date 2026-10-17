@@ -3,6 +3,13 @@
 Issues found during review that are not part of the current phase. Add items here only
 when a real diagram shows the problem. Priority: **high / medium / low**.
 
+## Design rules (decided)
+
+- **A user edit never moves other nodes automatically.** Resizing a node doesn't push its
+  neighbours, and a container growing over a node doesn't move that node out. Pushing
+  neighbours cascades through the diagram and is usually worse than an overlap the user
+  fixes with one drag. Overlaps are shown (warning outline), not resolved automatically.
+
 ---
 
 ## B1 — Arrowhead right after a bend (medium)
@@ -170,18 +177,19 @@ its children, so they look like they are inside the boundary when they are not.
    see Phase 6).
 
 **Expected:** a container's box always reflects its real children: it fits its content
-automatically, and never covers a node that is not inside it.
+automatically. When it covers a node that is not inside it, that is shown, not auto-fixed
+(see design rules).
 
-**Approach ideas:**
+**Approach:**
 - Always fit containers exactly to their children (drop "pinned only grows"); dragging a
   container just moves its subtree.
 - Optional manual size: a container resize handle stores a *minimum* size (the box is
   `max(fit, min size)`), never smaller than its content.
-- After a user action, if a container overlaps a non-member node: move unpinned non-member
-  nodes out to the nearest free spot; for pinned ones, show a warning outline instead of
-  moving them.
-- Phase 6: dropping a node onto a container offers to move it into that container's block
-  in the code (and dragging it out moves it out).
+- A container overlapping a node that is not inside it: warning outline on that node in the
+  editor + a `layout/overlaps-container` warning; the user drags it in or out.
+- Dropping a node onto a container moves it into that container's block in the code (done
+  in Phase 6).
 
-**Done when:** layout test: after any drag/resize sequence, no non-member node box
-intersects a container box; a container shrinks back when its children move closer.
+**Done when:** layout tests: a container (pinned or not) shrinks back when its children move
+closer; min size is respected but never smaller than content; overlaps with non-members are
+reported; the editor shows the warning outline.

@@ -166,10 +166,10 @@ Render only, nothing new stored.
 Layout + editor.
 - [ ] Containers always fit their children exactly (drop "pinned only grows")
 - [ ] Container resize handle sets a *minimum* size (never smaller than content)
-- [ ] After a user action, unpinned non-member nodes overlapped by a container are moved out;
-      pinned ones get a warning outline
-- [ ] Layout tests: no non-member inside a container box after drag/resize sequences;
-      container shrinks back when children move closer
+- [ ] A container overlapping a node that is not inside it: warning outline in the editor +
+      `layout/overlaps-container` warning (never auto-moved, see BACKLOG design rules)
+- [ ] Layout tests: container (pinned or not) shrinks back when children move closer; min size
+      respected but never below content; overlaps reported
 
 ### Phase 11 — Router quality: B2 + B1  (medium–hard)
 Router only (`layout/src/router.ts`), verified on the examples and the 100-node graph.

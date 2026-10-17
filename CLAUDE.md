@@ -21,6 +21,7 @@ Prototype defaults for open design questions are listed at the top of `PLAN.md`.
 - **Write-back preserves text.** Model edits are targeted edits on the syntax tree
   (comments, order, formatting kept). Never regenerate the whole file from the model.
 - **Incremental layout:** pinned elements never move; existing ones stay close.
+- **A user edit never moves other nodes.** Overlaps are shown, not auto-resolved (no cascades).
 - **Unknown kinds/profiles are kept losslessly** and rendered as generic boxes.
 - **One generic grammar.** Profiles give meaning to kinds; they never change syntax.
 - **Built-in diagram types are profiles** using the same mechanism as user profiles.
