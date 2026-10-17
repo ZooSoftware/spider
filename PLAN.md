@@ -33,46 +33,46 @@ Chosen to keep the prototype simple. All can be revisited after review.
 
 ## Phase 1 — Core: grammar, parser, model
 
-- [ ] Grammar v0 (documented in `DESIGN.md`):
+- [x] Grammar v0 (documented in `DESIGN.md`):
   - `use <profile>[@version] [as alias]`
   - node: `kind id "label"? { props }?` (props `key: value`)
   - container: `kind id "label"? { children... }`
   - edge: `a -> b [: kind] ["label"]`
   - `#` comments
-- [ ] Lexer with positions; tokens keep surrounding whitespace/comments (trivia)
-- [ ] Recursive-descent parser → syntax tree with source spans; error recovery + diagnostics
-- [ ] Printer: syntax tree → text, **byte-identical** for unedited trees
-- [ ] Model builder: syntax tree → `Model { nodes, edges, containers }` with stable IDs
+- [x] Lexer with positions; tokens keep surrounding whitespace/comments (trivia)
+- [x] Recursive-descent parser → syntax tree with source spans; error recovery + diagnostics
+- [x] Printer: syntax tree → text, **byte-identical** for unedited trees
+- [x] Model builder: syntax tree → `Model { nodes, edges, containers }` with stable IDs
       (incl. `a->b#n` for duplicate edges); diagnostics for duplicate/unknown IDs
-- [ ] Tests: parse/print round trip over fixtures, model building, error cases
+- [x] Tests: parse/print round trip over fixtures, model building, error cases
 
 **Done when:** every fixture round-trips byte-identically, and models are correct.
 
 ## Phase 2 — Profiles
 
-- [ ] `profile-schema`: Zod schema for `profile.yaml` (nodes, edges, containment, rules,
+- [x] `profile-schema`: Zod schema for `profile.yaml` (nodes, edges, containment, rules,
       layout hints, theme), exported types
-- [ ] `profiles` loader: resolve `use` from local folders, `extends` merging, namespacing
+- [x] `profiles` loader: resolve `use` from local folders, `extends` merging, namespacing
       (`alias.kind`), SVG sanitization
-- [ ] Built-in `base/architecture`: `service`, `db`, `queue`, `cache`, `external`, `user`,
+- [x] Built-in `base/architecture`: `service`, `db`, `queue`, `cache`, `external`, `user`,
       container `zone`; edge kinds `calls`, `async`, `data`; simple SVG icons
-- [ ] Validation: unknown kind (warning, kept losslessly), containment rules,
+- [x] Validation: unknown kind (warning, kept losslessly), containment rules,
       allowed edges, `forbid` rules
-- [ ] Tests: loading, extends, validation messages
+- [x] Tests: loading, extends, validation messages
 
 **Done when:** a diagram using `base/architecture` validates, with useful diagnostics.
 
 ## Phase 3 — Layout
 
-- [ ] Layout file format (`*.layout.json`): `{ version, nodes: {id: {x,y,w,h,pinned}}, edges: {id: {points, sourcePort, targetPort}} }`
-- [ ] ELK adapter for **placement**: model + profile hints → ELK graph (layered, ports,
+- [x] Layout file format (`*.layout.json`): `{ version, nodes: {id: {x,y,w,h,pinned}}, edges: {id: {points, sourcePort, targetPort}} }`
+- [x] ELK adapter for **placement**: model + profile hints → ELK graph (layered, ports,
       nested containers) → positions
-- [ ] Own synchronous orthogonal **router** (obstacle avoidance, ports, bend minimization,
+- [x] Own synchronous orthogonal **router** (obstacle avoidance, ports, bend minimization,
       parallel-segment nudging). Used for all final routes, and by the editor while dragging
-- [ ] Incremental layout: pinned nodes fixed, existing nodes kept close, new nodes placed;
+- [x] Incremental layout: pinned nodes fixed, existing nodes kept close, new nodes placed;
       manually routed edges keep their waypoints
-- [ ] Merge + orphan cleanup
-- [ ] Tests: stability (adding a node doesn't move pinned nodes), orphan removal
+- [x] Merge + orphan cleanup
+- [x] Tests: stability (adding a node doesn't move pinned nodes), orphan removal
 
 **Done when:** re-running layout after adding a node leaves pinned nodes exactly in place.
 
