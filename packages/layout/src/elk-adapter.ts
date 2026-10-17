@@ -1,5 +1,5 @@
 // ELK adapter: model + profile hints -> hierarchical ELK graph -> absolute node rects.
-// Only placement is taken from ELK; edge routes come from our own router (router.ts).
+// Only placement is taken from ELK; edge routes come from our own router (router/).
 import type { Model } from "@spider/core";
 import type { ResolvedProfile } from "@spider/profile-schema";
 import ELK, { type ElkExtendedEdge, type ElkNode } from "elkjs/lib/elk.bundled.js";

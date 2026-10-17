@@ -15,7 +15,7 @@ import {
 } from "./geometry.ts";
 import { reconcileLayout } from "./layout-io.ts";
 import type { LayoutFile, NodeLayout } from "./layout-file.ts";
-import { routeEdges } from "./router.ts";
+import { routeEdges } from "./router/index.ts";
 
 export interface LayoutOptions {
   /** Ignore all previous positions and lay out from scratch. */

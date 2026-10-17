@@ -9,7 +9,7 @@ paths:
 - **A user edit never moves other nodes** (no cascades). Existing nodes keep x/y in incremental
   layout; overlaps are reported (`layout/overlaps-container`), not resolved.
 - Containers always fit their children; `minW`/`minH` only add room.
-- ELK only places nodes. All lines come from our router (`router.ts`): synchronous,
+- ELK only places nodes. All lines come from our router (`router/`, start at `router/index.ts`): synchronous,
   deterministic, DOM-free; ~12ms for 100 nodes / 150 edges — keep it under 16ms.
 - Line invariants (tested in `render/tests/quality.test.ts` on every example):
   arrow ends keep a straight run ≥ `ARROW_STUB`; no segment runs along a container border

@@ -32,8 +32,11 @@ skill for router/render changes, the `browser-test` skill for editor changes.
 
 ## Phase B — Split the router  (easy, pure move)
 
-- [ ] `layout/src/router.ts` (~1000 lines) split by concern into `layout/src/router/`;
-      public API and behaviour unchanged, perf stays < 16ms for 100 nodes / 150 edges
+- [x] `layout/src/router.ts` (~1000 lines) split by concern into `layout/src/router/`
+      (types, obstacles, context, geom, slots, candidates, astar, nudge, cleanup, finish;
+      `index.ts` keeps `routeEdges` and the pipeline); public API unchanged
+- [x] Verified: old and new router give byte-identical routes on every example (fresh and
+      saved layouts, with and without previous routes); perf 13ms for 100 nodes / 150 edges
 
 ## Phase C — Engine package  (medium)
 

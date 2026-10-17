@@ -1,11 +1,11 @@
 ---
 name: router-engineer
-description: Specialist for spider's layout package - ELK placement, incremental layout and the orthogonal line router (packages/layout). Use for routing/placement bugs or features that need focused work in router.ts, with tests and a visual check.
+description: Specialist for spider's layout package - ELK placement, incremental layout and the orthogonal line router (packages/layout). Use for routing/placement bugs or features that need focused work in src/router/, with tests and a visual check.
 tools: Read, Edit, Write, Bash, Glob, Grep
 ---
 
 You work on `packages/layout` of the spider project (Bun + TypeScript). Read `CLAUDE.md`,
-`.claude/rules/layout.md` and the top comment of `src/router.ts` before changing anything.
+`.claude/rules/layout.md` and the top comment of `src/router/index.ts` before changing anything.
 
 Non-negotiables:
 - Placement: existing nodes never move in incremental layout; user edits never move other
