@@ -8,6 +8,9 @@ description: The working loop for a phase of the active spec (spec/NNN-*/plan.md
 1. **Read** the phase in the active spec's `plan.md` (see `spec/README.md`), and the backlog
    item with its "done when" if there is one.
    If a design question is genuinely the user's (e.g. it would auto-move nodes), ask first.
+   **Simplicity check** (`docs/decisions/0025-simple-and-compact-first.md`): does it work with
+   zero config, add nothing required to the `.spd`, avoid new options/grammar/deps, and keep any
+   manual control small, local and resettable? If not, propose a simpler version before coding.
 2. **Implement** in small steps. Shared contracts (`core/src/model.ts`,
    `profile-schema/src/index.ts`, `layout/src/layout-file.ts`) change additively only.
 3. **Test**: new behaviour gets tests in `packages/<pkg>/tests/`; then
@@ -18,7 +21,8 @@ description: The working loop for a phase of the active spec (spec/NNN-*/plan.md
 4. **Verify for real**: router/render → `visual-check` skill; editor → `browser-test` skill.
    A bug found here gets fixed and a regression test.
 5. **Docs**: tick the checklist in the spec's `plan.md`, mark backlog items `✅`, and record
-   any decision in `DESIGN.md` §11 / rules in `CLAUDE.md` if it is lasting.
+   a lasting decision as a new `docs/decisions/` record (template there), update
+   `docs/architecture/` / `docs/reference/` if behaviour or a format changed, rules in `CLAUDE.md`.
 6. **Commit** one commit per phase, staging explicit paths. Never stage the user's own edits
    (e.g. `examples/*.layout.json` changed in the editor) — check `git status` first.
 7. **Report** to the user: what changed, what was verified and how, bugs found on the way,

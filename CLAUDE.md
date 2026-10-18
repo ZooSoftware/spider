@@ -1,15 +1,29 @@
 # Spider
 
 Diagram-as-code with a reverse flow: code → diagram, and canvas edits → code.
-Full design and open questions: `DESIGN.md`. Read it before any architectural change.
+Source of truth: `docs/` (index: `docs/README.md`): `architecture/` (structure, pipeline),
+`decisions/` (one record per decision, the why), `reference/` (grammar, file formats,
+diagnostic codes), `techs/`, `roadmap.md` (open questions). Read the relevant part before any
+architectural change; record a lasting decision as a new `docs/decisions/` record.
 
 ## Status
 
-Prototype complete (`v0.1.0`), clean-architecture pass done (spec 002). All plans live in
+Prototype complete (`v0.1.0`), clean-architecture pass done (spec 002), docs in `docs/` (spec 003). All plans live in
 `spec/` (index: `spec/README.md`); new work starts as a new numbered spec (tick tasks as they land).
 User guide: `README.md`. Claude setup (rules, skills, agents, hooks): `.claude/README.md`.
 Review findings to fix later: `spec/backlog.md`.
 Prototype defaults for open design questions: top of `spec/001-prototype/plan.md`.
+
+## The most important rule: simple and compact first
+
+Spider keeps Mermaid/PlantUML's simplicity (a few lines → a diagram, zero config) and fixes only
+their specific pains. It must never grow into draw.io-style freedom. Before planning or building
+any feature, run the simplicity test in `docs/decisions/0025-simple-and-compact-first.md`:
+zero config by default · nothing new required in the `.spd` · fix the cause, don't add a knob ·
+escape hatches small, local, resettable, in the layout file · styling freedom only in profiles ·
+small surface (grammar, deps, code) · if it smells like draw.io, it's out.
+A feature that fails gets simplified, made automatic, moved into a profile, or dropped; when in
+doubt, ask the user first.
 
 ## Core invariants (do not break)
 
@@ -19,7 +33,7 @@ Prototype defaults for open design questions: top of `spec/001-prototype/plan.md
 - **Model is the source of truth for existence.** Layout entries only describe model IDs;
   missing layout → auto-place; orphan layout → cleanup.
 - **Edit routing:** geometric edits touch layout only; structural edits touch the model
-  (and layout when needed). See the table in `DESIGN.md` §3.1.
+  (and layout when needed). See the table in `docs/architecture/editor.md`.
 - **Write-back preserves text.** Model edits are targeted edits on the syntax tree
   (comments, order, formatting kept). Never regenerate the whole file from the model.
 - **Incremental layout:** pinned elements never move; existing ones stay close.
@@ -64,7 +78,8 @@ packages/
 - Strict TypeScript, ESM only. No `any` in public APIs.
 - Tests in `packages/<pkg>/tests/*.test.ts` (helpers there too), importing `../src/…`. Parser and write-back changes need
   round-trip tests: `parse → edit → print` must keep untouched text byte-identical.
-- Keep the DSL small and AI-friendly. Any grammar change needs a `DESIGN.md` update.
+- Keep the DSL small and AI-friendly. Any grammar change needs a decision record and a
+  `docs/reference/grammar.md` update.
 - User-supplied SVG assets must be sanitized before render.
 
 ## Commands

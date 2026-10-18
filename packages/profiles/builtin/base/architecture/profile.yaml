@@ -1,5 +1,5 @@
 # Built-in architecture profile: services, data stores, messaging and trust zones.
-# Uses the same format as user profiles (see DESIGN.md §4).
+# Uses the same format as user profiles (see docs/reference/profile-format.md).
 name: base/architecture
 version: 0.1.0
 description: Software architecture diagrams (services, data stores, queues, zones).

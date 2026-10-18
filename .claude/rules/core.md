@@ -12,5 +12,5 @@ paths:
 - Every write-back operation needs: an exact-output test, and a property test over
   `examples/*.spd` (valid code afterwards, model as expected).
 - Parsing never throws; diagnostics carry `code` + `span`. New codes: `parse/…`, `model/…`.
-- A grammar change must also update: `DESIGN.md` grammar section, the CodeMirror highlighter
+- A grammar change must also update: `docs/reference/grammar.md` (and a decision record in `docs/decisions/`), the CodeMirror highlighter
   (`packages/editor/src/code.ts`), and the cheat sheet syntax (`profiles/src/cheatsheet.ts`).
